@@ -81,3 +81,14 @@ duration
 remote_addr
 user_agent
 ```
+
+## Graceful shutdown
+
+La aplicación captura señales del sistema para apagarse correctamente.
+
+Señales soportadas:
+
+```text
+SIGINT  # CTRL + C
+SIGTERM # Docker / Kubernetes
+```

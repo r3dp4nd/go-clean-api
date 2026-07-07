@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -47,6 +48,18 @@ func (s *Server) Start() error {
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+
+	return nil
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.logger.Info("http server shutdown started")
+
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		return err
+	}
+
+	s.logger.Info("http server shutdown completed")
 
 	return nil
 }

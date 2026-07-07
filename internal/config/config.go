@@ -21,13 +21,15 @@ type AppConfig struct {
 }
 
 type HTTPConfig struct {
-	Host              string
-	Port              int
-	Addr              string
-	ReadHeaderTimeout time.Duration
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
+	Host                   string
+	Port                   int
+	Addr                   string
+	ReadHeaderTimeout      time.Duration
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	IdleTimeout            time.Duration
+	ShutdownTimeout        time.Duration
+	ShutdownTimeoutSeconds int
 }
 
 type LogConfig struct {
@@ -41,6 +43,15 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	shutdownTimeoutSeconds, err := getEnvAsInt("HTTP_SHUTDOWN_TIMEOUT_SECONDS", 10)
+	if err != nil {
+		return nil, err
+	}
+
+	if shutdownTimeoutSeconds <= 0 {
+		return nil, fmt.Errorf("HTTP_SHUTDOWN_TIMEOUT_SECONDS must be greater than zero")
+	}
+
 	httpHost := getEnv("HTTP_HOST", "")
 
 	cfg := &Config{
@@ -50,13 +61,15 @@ func Load() (*Config, error) {
 			Environment: getEnv("APP_ENV", "development"),
 		},
 		HTTP: HTTPConfig{
-			Host:              httpHost,
-			Port:              httpPort,
-			Addr:              fmt.Sprintf("%s:%d", httpHost, httpPort),
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       10 * time.Second,
-			WriteTimeout:      10 * time.Second,
-			IdleTimeout:       60 * time.Second,
+			Host:                   httpHost,
+			Port:                   httpPort,
+			Addr:                   fmt.Sprintf("%s:%d", httpHost, httpPort),
+			ReadHeaderTimeout:      5 * time.Second,
+			ReadTimeout:            10 * time.Second,
+			WriteTimeout:           10 * time.Second,
+			IdleTimeout:            60 * time.Second,
+			ShutdownTimeout:        time.Duration(shutdownTimeoutSeconds) * time.Second,
+			ShutdownTimeoutSeconds: shutdownTimeoutSeconds,
 		},
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
