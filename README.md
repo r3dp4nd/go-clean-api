@@ -39,3 +39,18 @@ make help
 ```bash
 curl http://localhost:8080
 ```
+
+## Configuración
+
+La aplicación usa variables de entorno para configurar valores principales.
+
+Variables disponibles:
+
+```env
+APP_NAME=go-clean-api
+APP_VERSION=v0.1.0
+APP_ENV=development
+
+HTTP_HOST=
+HTTP_PORT=8080
+```

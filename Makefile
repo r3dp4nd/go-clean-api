@@ -2,6 +2,10 @@ APP_NAME=go-clean-api
 BUILD_DIR=bin
 MAIN_PACKAGE=./cmd/api
 
+APP_ENV?=development
+HTTP_HOST?=
+HTTP_PORT?=8080
+
 .PHONY: help run build clean test fmt vet tidy
 
 help:
@@ -15,6 +19,11 @@ help:
 	@echo "  make tidy    - Ordena dependencias del módulo"
 
 run:
+	APP_NAME=$(APP_NAME) \
+	APP_VERSION=v0.1.0 \
+	APP_ENV=$(APP_ENV) \
+	HTTP_HOST=$(HTTP_HOST) \
+	HTTP_PORT=$(HTTP_PORT) \
 	go run $(MAIN_PACKAGE)
 
 build:

@@ -13,6 +13,9 @@ tmp/
 .env
 .env.*
 
+# Keep env examples
+!.env.example
+
 # IDE / Editor
 .vscode/
 .idea/

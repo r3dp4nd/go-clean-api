@@ -8,11 +8,19 @@ import (
 	"time"
 )
 
+type Options struct {
+	Addr              string
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+}
+
 type Server struct {
 	httpServer *http.Server
 }
 
-func New(addr string) *Server {
+func New(options Options) *Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", handleHome)
@@ -20,12 +28,12 @@ func New(addr string) *Server {
 	mux.HandleFunc("/ready", handleReady)
 
 	httpServer := &http.Server{
-		Addr:              addr,
+		Addr:              options.Addr,
 		Handler:           loggingMiddleware(mux),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: options.ReadHeaderTimeout,
+		ReadTimeout:       options.ReadTimeout,
+		WriteTimeout:      options.WriteTimeout,
+		IdleTimeout:       options.IdleTimeout,
 	}
 
 	return &Server{
