@@ -64,3 +64,20 @@ Variables disponibles:
 ```env
 LOG_LEVEL=info
 LOG_FORMAT=json
+```
+
+## Logging HTTP
+
+El middleware HTTP registra información estructurada de cada request.
+
+Campos registrados:
+
+```text
+method
+path
+status_code
+bytes_written
+duration
+remote_addr
+user_agent
+```
