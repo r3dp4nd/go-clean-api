@@ -114,3 +114,13 @@ La API responde errores con un formato estructurado:
   }
 }
 ```
+
+## Handler con dependencias
+
+La capa HTTP usa una estructura `Handler` para agrupar dependencias de los handlers.
+
+```go
+type Handler struct {
+	logger *slog.Logger
+}
+```

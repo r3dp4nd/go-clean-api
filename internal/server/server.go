@@ -25,7 +25,9 @@ type Server struct {
 func New(options Options) *Server {
 	mux := http.NewServeMux()
 
-	registerRoutes(mux)
+	handlers := NewHandler(options.Logger)
+
+	registerRoutes(mux, handlers)
 
 	handler := requestIDMiddleware(
 		loggingMiddleware(options.Logger, mux),

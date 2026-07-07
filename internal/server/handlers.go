@@ -1,8 +1,21 @@
 package server
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
-func handleHome(w http.ResponseWriter, r *http.Request) {
+type Handler struct {
+	logger *slog.Logger
+}
+
+func NewHandler(logger *slog.Logger) *Handler {
+	return &Handler{
+		logger: logger,
+	}
+}
+
+func (h *Handler) handleHome(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		writeNotFound(w, r)
 		return
@@ -21,7 +34,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w, r, http.MethodGet)
 		return
@@ -34,7 +47,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func handleReady(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w, r, http.MethodGet)
 		return
