@@ -135,3 +135,11 @@ Rutas disponibles:
 GET /health
 GET /ready
 ```
+
+## API v1
+
+La API pública versionada comienza bajo el prefijo:
+
+```text
+/api/v1
+```

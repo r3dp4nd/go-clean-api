@@ -9,6 +9,12 @@ type StatusResponse struct {
 	Status string `json:"status"`
 }
 
+type PingResponse struct {
+	Message   string `json:"message"`
+	Version   string `json:"version"`
+	RequestID string `json:"request_id"`
+}
+
 type ErrorResponse struct {
 	Error APIError `json:"error"`
 }
