@@ -92,3 +92,11 @@ Señales soportadas:
 SIGINT  # CTRL + C
 SIGTERM # Docker / Kubernetes
 ```
+
+## Request ID
+
+La API agrega un identificador único por request usando el header:
+
+```http
+X-Request-ID
+```

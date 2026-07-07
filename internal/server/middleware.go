@@ -16,6 +16,7 @@ func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 		duration := time.Since(startedAt)
 
 		attrs := []any{
+			"request_id", getRequestID(r.Context()),
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status_code", recorder.statusCode,

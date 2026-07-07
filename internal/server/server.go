@@ -27,9 +27,13 @@ func New(options Options) *Server {
 
 	registerRoutes(mux)
 
+	handler := requestIDMiddleware(
+		loggingMiddleware(options.Logger, mux),
+	)
+
 	httpServer := &http.Server{
 		Addr:              options.Addr,
-		Handler:           loggingMiddleware(options.Logger, mux),
+		Handler:           handler,
 		ReadHeaderTimeout: options.ReadHeaderTimeout,
 		ReadTimeout:       options.ReadTimeout,
 		WriteTimeout:      options.WriteTimeout,
