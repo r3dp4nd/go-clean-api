@@ -24,15 +24,18 @@ go run main.go
 
 ---
 
-## 1.8. Estructura esperada
+## Comandos con Makefile
 
-Al finalizar el Paso 1, tu proyecto debe verse así:
+Ver comandos disponibles:
 
-```bash id="ag2dbs"
-go-clean-api/
-├── .gitignore
-├── README.md
-├── go.mod
-├── main.go
-└── app
+```bash
+make help
+```
+
+## Endpoints iniciales
+
+### Home
+
+```bash
+curl http://localhost:8080
 ```
