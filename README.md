@@ -54,3 +54,13 @@ APP_ENV=development
 HTTP_HOST=
 HTTP_PORT=8080
 ```
+
+## Logging
+
+La aplicación usa `log/slog` para logs estructurados.
+
+Variables disponibles:
+
+```env
+LOG_LEVEL=info
+LOG_FORMAT=json

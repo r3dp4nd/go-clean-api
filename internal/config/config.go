@@ -11,6 +11,7 @@ import (
 type Config struct {
 	App  AppConfig
 	HTTP HTTPConfig
+	Log  LogConfig
 }
 
 type AppConfig struct {
@@ -27,6 +28,11 @@ type HTTPConfig struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
+}
+
+type LogConfig struct {
+	Level  string
+	Format string
 }
 
 func Load() (*Config, error) {
@@ -52,7 +58,12 @@ func Load() (*Config, error) {
 			WriteTimeout:      10 * time.Second,
 			IdleTimeout:       60 * time.Second,
 		},
+		Log: LogConfig{
+			Level:  getEnv("LOG_LEVEL", "info"),
+			Format: getEnv("LOG_FORMAT", "json"),
+		},
 	}
+
 	return cfg, nil
 }
 

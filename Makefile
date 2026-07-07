@@ -5,6 +5,8 @@ MAIN_PACKAGE=./cmd/api
 APP_ENV?=development
 HTTP_HOST?=
 HTTP_PORT?=8080
+LOG_LEVEL?=info
+LOG_FORMAT?=json
 
 .PHONY: help run build clean test fmt vet tidy
 
@@ -20,10 +22,12 @@ help:
 
 run:
 	APP_NAME=$(APP_NAME) \
-	APP_VERSION=v0.1.0 \
+	APP_VERSION=$(APP_VERSION) \
 	APP_ENV=$(APP_ENV) \
 	HTTP_HOST=$(HTTP_HOST) \
 	HTTP_PORT=$(HTTP_PORT) \
+	LOG_LEVEL=$(LOG_LEVEL) \
+	LOG_FORMAT=$(LOG_FORMAT) \
 	go run $(MAIN_PACKAGE)
 
 build:

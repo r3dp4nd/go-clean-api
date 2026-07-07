@@ -1,22 +1,24 @@
 package server
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
 
-func loggingMiddleware(next http.Handler) http.Handler {
+func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startedAt := time.Now()
 
 		next.ServeHTTP(w, r)
 
-		log.Printf(
-			"%s %s %s",
-			r.Method,
-			r.URL.Path,
-			time.Since(startedAt),
+		logger.Info(
+			"http request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"duration", time.Since(startedAt).String(),
+			"remote_addr", r.RemoteAddr,
+			"user_agent", r.UserAgent(),
 		)
 	})
 }

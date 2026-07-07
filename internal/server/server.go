@@ -2,7 +2,7 @@ package server
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -13,22 +13,22 @@ type Options struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
+	Logger            *slog.Logger
 }
 
 type Server struct {
 	httpServer *http.Server
+	logger     *slog.Logger
 }
 
 func New(options Options) *Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", handleHome)
-	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/ready", handleReady)
+	registerRoutes(mux)
 
 	httpServer := &http.Server{
 		Addr:              options.Addr,
-		Handler:           loggingMiddleware(mux),
+		Handler:           loggingMiddleware(options.Logger, mux),
 		ReadHeaderTimeout: options.ReadHeaderTimeout,
 		ReadTimeout:       options.ReadTimeout,
 		WriteTimeout:      options.WriteTimeout,
@@ -37,11 +37,12 @@ func New(options Options) *Server {
 
 	return &Server{
 		httpServer: httpServer,
+		logger:     options.Logger,
 	}
 }
 
 func (s *Server) Start() error {
-	log.Printf("HTTP server listening on %s", s.httpServer.Addr)
+	s.logger.Info("http server listening", "addr", s.httpServer.Addr)
 
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err

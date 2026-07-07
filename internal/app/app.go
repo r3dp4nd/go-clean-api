@@ -1,7 +1,7 @@
 package app
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/r3dp4nd/go-clean-api/internal/config"
 	"github.com/r3dp4nd/go-clean-api/internal/server"
@@ -9,20 +9,22 @@ import (
 
 type App struct {
 	config *config.Config
+	logger *slog.Logger
 }
 
-func New(cfg *config.Config) *App {
+func New(cfg *config.Config, logger *slog.Logger) *App {
 	return &App{
 		config: cfg,
+		logger: logger,
 	}
 }
 
 func (a *App) Run() error {
-	log.Printf(
-		"%s %s starting in %s mode",
-		a.config.App.Name,
-		a.config.App.Version,
-		a.config.App.Environment,
+	a.logger.Info(
+		"application starting",
+		"app_name", a.config.App.Name,
+		"app_version", a.config.App.Version,
+		"environment", a.config.App.Environment,
 	)
 
 	httpServer := server.New(server.Options{
@@ -31,6 +33,7 @@ func (a *App) Run() error {
 		ReadTimeout:       a.config.HTTP.ReadTimeout,
 		WriteTimeout:      a.config.HTTP.WriteTimeout,
 		IdleTimeout:       a.config.HTTP.IdleTimeout,
+		Logger:            a.logger,
 	})
 
 	return httpServer.Start()
