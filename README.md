@@ -124,3 +124,14 @@ type Handler struct {
 	logger *slog.Logger
 }
 ```
+
+## Rutas de sistema
+
+La API separa las rutas técnicas de las rutas de negocio.
+
+Rutas disponibles:
+
+```text
+GET /health
+GET /ready
+```
