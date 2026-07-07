@@ -10,5 +10,11 @@ type StatusResponse struct {
 }
 
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error APIError `json:"error"`
+}
+
+type APIError struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
 }

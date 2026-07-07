@@ -4,12 +4,12 @@ import "net/http"
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
-		writeNotFound(w)
+		writeNotFound(w, r)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w, http.MethodGet)
+		writeMethodNotAllowed(w, r, http.MethodGet)
 		return
 	}
 
@@ -23,7 +23,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w, http.MethodGet)
+		writeMethodNotAllowed(w, r, http.MethodGet)
 		return
 	}
 
@@ -36,7 +36,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func handleReady(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w, http.MethodGet)
+		writeMethodNotAllowed(w, r, http.MethodGet)
 		return
 	}
 

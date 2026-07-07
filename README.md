@@ -100,3 +100,17 @@ La API agrega un identificador único por request usando el header:
 ```http
 X-Request-ID
 ```
+
+## Formato de errores HTTP
+
+La API responde errores con un formato estructurado:
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "route not found",
+    "request_id": "test-request-123"
+  }
+}
+```
