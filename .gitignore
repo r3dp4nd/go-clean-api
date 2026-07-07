@@ -1,0 +1,21 @@
+# Binaries
+app
+*.exe
+*.out
+*.test
+
+# Build folders
+bin/
+dist/
+tmp/
+
+# Environment files
+.env
+.env.*
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
