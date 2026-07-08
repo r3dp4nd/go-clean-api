@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ func TestProductsCRUD(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	createBody := []byte(`{
+		"sku": "LAPTOP-IT",
 		"name": "Laptop",
 		"description": "Laptop para desarrollo backend",
 		"price": 3500
@@ -110,6 +112,7 @@ func TestProductsCRUD(t *testing.T) {
 	}
 
 	updateBody := []byte(`{
+		"sku": "LAPTOP-PRO-IT",
 		"name": "Laptop Pro",
 		"description": "Laptop para Go, Docker y Kubernetes",
 		"price": 4200
@@ -137,6 +140,10 @@ func TestProductsCRUD(t *testing.T) {
 
 	if updatedProduct.Name != "Laptop Pro" {
 		t.Fatalf("expected product name %q, got %q", "Laptop Pro", updatedProduct.Name)
+	}
+
+	if updatedProduct.SKU != "LAPTOP-PRO-IT" {
+		t.Fatalf("expected product sku %q, got %q", "LAPTOP-PRO-IT", updatedProduct.SKU)
 	}
 
 	if updatedProduct.Price != 4200 {
@@ -200,11 +207,12 @@ func TestCreateProductValidationError(t *testing.T) {
 		t.Fatalf("expected request id %q, got %q", "invalid-product-data", response.Error.RequestID)
 	}
 
-	if len(response.Error.Fields) != 2 {
-		t.Fatalf("expected 2 field errors, got %d", len(response.Error.Fields))
+	if len(response.Error.Fields) != 3 {
+		t.Fatalf("expected 3 field errors, got %d", len(response.Error.Fields))
 	}
 
 	expectedFields := map[string]string{
+		"sku":   "sku is required",
 		"name":  "name is required",
 		"price": "price must be greater than or equal to zero",
 	}
@@ -355,11 +363,12 @@ func TestListProductsPagination(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	for i := 1; i <= 3; i++ {
-		body := []byte(`{
+		body := []byte(fmt.Sprintf(`{
+			"sku": "PRODUCT-IT-%03d",
 			"name": "Product",
 			"description": "Producto de prueba",
 			"price": 100
-		}`)
+		}`, i))
 
 		request := httptest.NewRequest(
 			http.MethodPost,
@@ -418,9 +427,9 @@ func TestListProductsSearch(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	products := []string{
-		`{"name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
-		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
-		`{"name":"Keyboard","description":"Teclado mecánico","price":250}`,
+		`{"sku": "LAPTOP-IT", "name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
+		`{"sku": "MOUSE-IT", "name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+		`{"sku": "KEYBOARD-IT", "name":"Keyboard","description":"Teclado mecánico","price":250}`,
 	}
 
 	for _, body := range products {
@@ -477,6 +486,7 @@ func TestListProductsSearchByDescription(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	body := []byte(`{
+		"sku": "LAPTOP-IT",
 		"name": "Laptop",
 		"description": "Equipo para desarrollo backend",
 		"price": 3500
@@ -559,9 +569,9 @@ func TestListProductsSortByPriceDescending(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	products := []string{
-		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
-		`{"name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
-		`{"name":"Keyboard","description":"Teclado mecánico","price":250}`,
+		`{"sku": "MOUSE-IT", "name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+		`{"sku": "LAPTOP-IT", "name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
+		`{"sku": "KEYBOARD-IT", "name":"Keyboard","description":"Teclado mecánico","price":250}`,
 	}
 
 	for _, body := range products {
@@ -654,10 +664,10 @@ func TestListProductsSearchAndSort(t *testing.T) {
 	handler := newTestHTTPHandler()
 
 	products := []string{
-		`{"name":"Laptop Basic","description":"Laptop para oficina","price":2500}`,
-		`{"name":"Laptop Pro","description":"Laptop para desarrollo backend","price":4500}`,
-		`{"name":"Laptop Air","description":"Laptop ligera","price":3500}`,
-		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+		`{"sku":"LAPTOP-BASIC-IT","name":"Laptop Basic","description":"Laptop para oficina","price":2500}`,
+		`{"sku":"LAPTOP-PRO-IT","name":"Laptop Pro","description":"Laptop para desarrollo backend","price":4500}`,
+		`{"sku":"LAPTOP-AIR-IT","name":"Laptop Air","description":"Laptop ligera","price":3500}`,
+		`{"sku":"MOUSE-IT","name":"Mouse","description":"Mouse inalámbrico","price":120}`,
 	}
 
 	for _, body := range products {

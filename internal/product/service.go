@@ -15,6 +15,7 @@ const (
 	DefaultOrder = SortOrderAsc
 
 	SortFieldID        = "id"
+	SortFieldSKU       = "sku"
 	SortFieldName      = "name"
 	SortFieldPrice     = "price"
 	SortFieldCreatedAt = "created_at"
@@ -23,6 +24,7 @@ const (
 	SortOrderAsc  = "asc"
 	SortOrderDesc = "desc"
 
+	maxProductSKULength         = 64
 	maxProductNameLength        = 120
 	maxProductDescriptionLength = 500
 )
@@ -52,12 +54,14 @@ func (s *Service) Get(ctx context.Context, id string) (Product, error) {
 
 func (s *Service) Create(ctx context.Context, input CreateProductInput) (Product, error) {
 	normalizedInput := CreateProductInput{
+		SKU:         normalizeSKU(input.SKU),
 		Name:        strings.TrimSpace(input.Name),
 		Description: strings.TrimSpace(input.Description),
 		Price:       input.Price,
 	}
 
 	if err := validateProductInput(
+		normalizedInput.SKU,
 		normalizedInput.Name,
 		normalizedInput.Description,
 		normalizedInput.Price,
@@ -70,12 +74,14 @@ func (s *Service) Create(ctx context.Context, input CreateProductInput) (Product
 
 func (s *Service) Update(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
 	normalizedInput := UpdateProductInput{
+		SKU:         normalizeSKU(input.SKU),
 		Name:        strings.TrimSpace(input.Name),
 		Description: strings.TrimSpace(input.Description),
 		Price:       input.Price,
 	}
 
 	if err := validateProductInput(
+		normalizedInput.SKU,
 		normalizedInput.Name,
 		normalizedInput.Description,
 		normalizedInput.Price,
@@ -180,6 +186,7 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 func IsSupportedSortField(value string) bool {
 	switch value {
 	case SortFieldID,
+		SortFieldSKU,
 		SortFieldName,
 		SortFieldPrice,
 		SortFieldCreatedAt,
@@ -199,8 +206,22 @@ func IsSupportedSortOrder(value string) bool {
 	}
 }
 
-func validateProductInput(name string, description string, price float64) error {
+func validateProductInput(sku string, name string, description string, price float64) error {
 	var fields []FieldViolation
+
+	if sku == "" {
+		fields = append(fields, FieldViolation{
+			Field:   "sku",
+			Message: "sku is required",
+		})
+	}
+
+	if len(sku) > maxProductSKULength {
+		fields = append(fields, FieldViolation{
+			Field:   "sku",
+			Message: "sku must be less than or equal to 64 characters",
+		})
+	}
 
 	if name == "" {
 		fields = append(fields, FieldViolation{
@@ -237,4 +258,8 @@ func validateProductInput(name string, description string, price float64) error 
 	}
 
 	return nil
+}
+
+func normalizeSKU(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
 }

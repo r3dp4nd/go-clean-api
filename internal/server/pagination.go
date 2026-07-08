@@ -64,7 +64,7 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 		if !product.IsSupportedSortField(rawSort) {
 			fields = append(fields, FieldError{
 				Field:   "sort",
-				Message: "sort must be one of: id, name, price, created_at, updated_at",
+				Message: "sort must be one of: id, sku, name, price, created_at, updated_at",
 			})
 		} else {
 			input.Sort = rawSort

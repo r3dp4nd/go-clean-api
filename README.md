@@ -390,3 +390,22 @@ Archivo principal:
 ```text
 cmd/seed/products/main.go
 ```
+
+## SKU único en Products
+
+Products ahora incluye un campo `sku` único.
+
+### Crear producto
+
+```bash
+curl -i \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sku": "LAPTOP-PRO",
+    "name": "Laptop Pro",
+    "description": "Laptop para desarrollo backend con Go",
+    "price": 4500
+  }' \
+  http://localhost:8080/api/v1/products
+```

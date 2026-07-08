@@ -92,6 +92,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item, err := h.productService.Create(r.Context(), product.CreateProductInput{
+		SKU:         request.SKU,
 		Name:        request.Name,
 		Description: request.Description,
 		Price:       request.Price,
@@ -135,6 +136,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 	}
 
 	item, err := h.productService.Update(r.Context(), id, product.UpdateProductInput{
+		SKU:         request.SKU,
 		Name:        request.Name,
 		Description: request.Description,
 		Price:       request.Price,
@@ -189,6 +191,7 @@ func writeProductValidationError(w http.ResponseWriter, r *http.Request, validat
 func toProductResponse(item product.Product) ProductResponse {
 	return ProductResponse{
 		ID:          item.ID,
+		SKU:         item.SKU,
 		Name:        item.Name,
 		Description: item.Description,
 		Price:       item.Price,

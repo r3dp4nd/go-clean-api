@@ -4,6 +4,7 @@ import "time"
 
 type Product struct {
 	ID          string
+	SKU         string
 	Name        string
 	Description string
 	Price       float64
@@ -12,12 +13,14 @@ type Product struct {
 }
 
 type CreateProductInput struct {
+	SKU         string
 	Name        string
 	Description string
 	Price       float64
 }
 
 type UpdateProductInput struct {
+	SKU         string
 	Name        string
 	Description string
 	Price       float64

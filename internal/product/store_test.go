@@ -13,6 +13,7 @@ func TestStoreCreateProduct(t *testing.T) {
 	ctx := context.Background()
 
 	item, err := store.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "Laptop",
 		Description: "Laptop para desarrollo backend",
 		Price:       3500,

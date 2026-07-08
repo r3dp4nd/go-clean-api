@@ -230,6 +230,10 @@ func TestServiceCreateProductNormalizesInput(t *testing.T) {
 
 	repository := &fakeRepository{
 		createFn: func(ctx context.Context, input CreateProductInput) (Product, error) {
+			if input.SKU != "LAPTOP-001" {
+				t.Fatalf("expected normalized sku %q, got %q", "LAPTOP-001", input.SKU)
+			}
+
 			if input.Name != "Laptop" {
 				t.Fatalf("expected trimmed name %q, got %q", "Laptop", input.Name)
 			}
@@ -244,6 +248,7 @@ func TestServiceCreateProductNormalizesInput(t *testing.T) {
 
 			return Product{
 				ID:          "1",
+				SKU:         input.SKU,
 				Name:        input.Name,
 				Description: input.Description,
 				Price:       input.Price,
@@ -256,6 +261,7 @@ func TestServiceCreateProductNormalizesInput(t *testing.T) {
 	service := NewService(repository)
 
 	item, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "  laptop-001  ",
 		Name:        "  Laptop  ",
 		Description: "  Laptop para desarrollo backend  ",
 		Price:       3500,
@@ -266,6 +272,10 @@ func TestServiceCreateProductNormalizesInput(t *testing.T) {
 
 	if repository.createCalls != 1 {
 		t.Fatalf("expected Create to be called once, got %d", repository.createCalls)
+	}
+
+	if item.SKU != "LAPTOP-001" {
+		t.Fatalf("expected product sku %q, got %q", "LAPTOP-001", item.SKU)
 	}
 
 	if item.Name != "Laptop" {
@@ -284,6 +294,7 @@ func TestServiceCreateProductValidationErrorDoesNotCallRepository(t *testing.T) 
 	service := NewService(repository)
 
 	_, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "",
 		Description: "Producto inválido",
 		Price:       -10,
@@ -332,6 +343,7 @@ func TestServiceCreateProductRepositoryError(t *testing.T) {
 	service := NewService(repository)
 
 	_, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "Laptop",
 		Description: "Laptop para desarrollo backend",
 		Price:       3500,
@@ -350,6 +362,10 @@ func TestServiceUpdateProductNormalizesInputAndID(t *testing.T) {
 				t.Fatalf("expected trimmed id %q, got %q", "123", id)
 			}
 
+			if input.SKU != "LAPTOP-PRO-001" {
+				t.Fatalf("expected normalized sku %q, got %q", "LAPTOP-PRO-001", input.SKU)
+			}
+
 			if input.Name != "Laptop Pro" {
 				t.Fatalf("expected trimmed name %q, got %q", "Laptop Pro", input.Name)
 			}
@@ -360,6 +376,7 @@ func TestServiceUpdateProductNormalizesInputAndID(t *testing.T) {
 
 			return Product{
 				ID:          id,
+				SKU:         input.SKU,
 				Name:        input.Name,
 				Description: input.Description,
 				Price:       input.Price,
@@ -372,6 +389,7 @@ func TestServiceUpdateProductNormalizesInputAndID(t *testing.T) {
 	service := NewService(repository)
 
 	item, err := service.Update(context.Background(), "  123  ", UpdateProductInput{
+		SKU:         "  laptop-pro-001  ",
 		Name:        "  Laptop Pro  ",
 		Description: "  Laptop para Go  ",
 		Price:       4200,
@@ -387,6 +405,10 @@ func TestServiceUpdateProductNormalizesInputAndID(t *testing.T) {
 	if item.ID != "123" {
 		t.Fatalf("expected product ID %q, got %q", "123", item.ID)
 	}
+
+	if item.SKU != "LAPTOP-PRO-001" {
+		t.Fatalf("expected product SKU %q, got %q", "LAPTOP-PRO-001", item.SKU)
+	}
 }
 
 func TestServiceUpdateProductValidationErrorDoesNotCallRepository(t *testing.T) {
@@ -400,6 +422,7 @@ func TestServiceUpdateProductValidationErrorDoesNotCallRepository(t *testing.T) 
 	service := NewService(repository)
 
 	_, err := service.Update(context.Background(), "123", UpdateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "",
 		Description: "Producto inválido",
 		Price:       -1,
@@ -428,6 +451,7 @@ func TestServiceUpdateProductNotFound(t *testing.T) {
 	service := NewService(repository)
 
 	_, err := service.Update(context.Background(), "999", UpdateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "Laptop",
 		Description: "Laptop para backend",
 		Price:       3500,
@@ -488,6 +512,7 @@ func TestServiceCreateProductMaxLengthValidation(t *testing.T) {
 	longDescription := strings.Repeat("b", maxProductDescriptionLength+1)
 
 	_, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        longName,
 		Description: longDescription,
 		Price:       100,
@@ -610,5 +635,43 @@ func TestServiceListProductsInvalidSortAndOrderDoesNotCallRepository(t *testing.
 
 	if len(validationErr.Fields) != 2 {
 		t.Fatalf("expected 2 validation fields, got %d", len(validationErr.Fields))
+	}
+}
+
+func TestServiceCreateProductSKURequiredDoesNotCallRepository(t *testing.T) {
+	repository := &fakeRepository{
+		createFn: func(ctx context.Context, input CreateProductInput) (Product, error) {
+			t.Fatal("repository Create should not be called when sku validation fails")
+			return Product{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "",
+		Name:        "Laptop",
+		Description: "Laptop para backend",
+		Price:       3500,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.createCalls != 0 {
+		t.Fatalf("expected Create not to be called, got %d calls", repository.createCalls)
+	}
+
+	if len(validationErr.Fields) != 1 {
+		t.Fatalf("expected 1 field violation, got %d", len(validationErr.Fields))
+	}
+
+	if validationErr.Fields[0].Field != "sku" {
+		t.Fatalf("expected field %q, got %q", "sku", validationErr.Fields[0].Field)
 	}
 }

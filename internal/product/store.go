@@ -134,6 +134,7 @@ func (s *Store) Create(ctx context.Context, input CreateProductInput) (Product, 
 
 	item := Product{
 		ID:          id,
+		SKU:         input.SKU,
 		Name:        input.Name,
 		Description: input.Description,
 		Price:       input.Price,
@@ -159,6 +160,7 @@ func (s *Store) Update(ctx context.Context, id string, input UpdateProductInput)
 		return Product{}, ErrNotFound
 	}
 
+	item.SKU = input.SKU
 	item.Name = input.Name
 	item.Description = input.Description
 	item.Price = input.Price
@@ -217,10 +219,12 @@ func compareProductID(left string, right string) int {
 }
 
 func productMatchesSearch(item Product, search string) bool {
+	sku := strings.ToLower(item.SKU)
 	name := strings.ToLower(item.Name)
 	description := strings.ToLower(item.Description)
 
-	return strings.Contains(name, search) ||
+	return strings.Contains(sku, search) ||
+		strings.Contains(name, search) ||
 		strings.Contains(description, search)
 }
 
@@ -238,6 +242,12 @@ func compareProducts(left Product, right Product, sortField string) int {
 	var comparison int
 
 	switch sortField {
+	case SortFieldSKU:
+		comparison = strings.Compare(
+			strings.ToLower(left.SKU),
+			strings.ToLower(right.SKU),
+		)
+
 	case SortFieldName:
 		comparison = strings.Compare(
 			strings.ToLower(left.Name),

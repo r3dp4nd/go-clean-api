@@ -18,6 +18,7 @@ func TestIntegrationPostgresProductRepositoryCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-INTEGRATION",
 		Name:        "Laptop Integration",
 		Description: "Producto creado desde test de integración",
 		Price:       3500,
@@ -28,6 +29,10 @@ func TestIntegrationPostgresProductRepositoryCRUD(t *testing.T) {
 
 	if created.ID == "" {
 		t.Fatal("expected product ID to be generated")
+	}
+
+	if created.SKU != "LAPTOP-INTEGRATION" {
+		t.Fatalf("expected product sku %q, got %q", "LAPTOP-INTEGRATION", created.SKU)
 	}
 
 	if created.Name != "Laptop Integration" {
@@ -51,13 +56,22 @@ func TestIntegrationPostgresProductRepositoryCRUD(t *testing.T) {
 		t.Fatalf("expected ID %q, got %q", created.ID, found.ID)
 	}
 
+	if found.SKU != created.SKU {
+		t.Fatalf("expected SKU %q, got %q", created.SKU, found.SKU)
+	}
+
 	updated, err := repository.Update(ctx, created.ID, UpdateProductInput{
+		SKU:         "LAPTOP-INTEGRATION-PRO",
 		Name:        "Laptop Integration Pro",
 		Description: "Producto actualizado desde test de integración",
 		Price:       4200,
 	})
 	if err != nil {
 		t.Fatalf("expected no error updating product, got %v", err)
+	}
+
+	if updated.SKU != "LAPTOP-INTEGRATION-PRO" {
+		t.Fatalf("expected updated sku %q, got %q", "LAPTOP-INTEGRATION-PRO", updated.SKU)
 	}
 
 	if updated.Name != "Laptop Integration Pro" {
@@ -90,6 +104,10 @@ func TestIntegrationPostgresProductRepositoryCRUD(t *testing.T) {
 		t.Fatalf("expected listed product ID %q, got %q", created.ID, listResult.Items[0].ID)
 	}
 
+	if listResult.Items[0].SKU != "LAPTOP-INTEGRATION-PRO" {
+		t.Fatalf("expected listed product SKU %q, got %q", "LAPTOP-INTEGRATION-PRO", listResult.Items[0].SKU)
+	}
+
 	if err := repository.Delete(ctx, created.ID); err != nil {
 		t.Fatalf("expected no error deleting product, got %v", err)
 	}
@@ -107,21 +125,25 @@ func TestIntegrationPostgresProductRepositoryListSearchSortAndPagination(t *test
 
 	products := []CreateProductInput{
 		{
+			SKU:         "LAPTOP-BASIC-IT",
 			Name:        "Laptop Basic",
 			Description: "Laptop para oficina",
 			Price:       2500,
 		},
 		{
+			SKU:         "LAPTOP-PRO-IT",
 			Name:        "Laptop Pro",
 			Description: "Laptop para desarrollo backend",
 			Price:       4500,
 		},
 		{
+			SKU:         "LAPTOP-AIR-IT",
 			Name:        "Laptop Air",
 			Description: "Laptop ligera",
 			Price:       3500,
 		},
 		{
+			SKU:         "MOUSE-IT",
 			Name:        "Mouse",
 			Description: "Mouse inalámbrico",
 			Price:       120,
@@ -191,12 +213,15 @@ func TestIntegrationPostgresProductRepositoryNotFound(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := repository.Get(ctx, "00000000-0000-0000-0000-000000000000")
+	missingID := "00000000-0000-0000-0000-000000000000"
+
+	_, err := repository.Get(ctx, missingID)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound getting missing product, got %v", err)
 	}
 
-	_, err = repository.Update(ctx, "00000000-0000-0000-0000-000000000000", UpdateProductInput{
+	_, err = repository.Update(ctx, missingID, UpdateProductInput{
+		SKU:         "MISSING-PRODUCT",
 		Name:        "Missing",
 		Description: "Missing product",
 		Price:       10,
@@ -205,7 +230,7 @@ func TestIntegrationPostgresProductRepositoryNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound updating missing product, got %v", err)
 	}
 
-	err = repository.Delete(ctx, "00000000-0000-0000-0000-000000000000")
+	err = repository.Delete(ctx, missingID)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound deleting missing product, got %v", err)
 	}

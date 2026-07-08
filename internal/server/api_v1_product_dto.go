@@ -4,6 +4,7 @@ import "time"
 
 type ProductResponse struct {
 	ID          string    `json:"id"`
+	SKU         string    `json:"sku"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Price       float64   `json:"price"`
@@ -27,12 +28,14 @@ type PaginationMeta struct {
 }
 
 type CreateProductRequest struct {
+	SKU         string  `json:"sku"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	Price       float64 `json:"price"`
 }
 
 type UpdateProductRequest struct {
+	SKU         string  `json:"sku"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	Price       float64 `json:"price"`

@@ -54,6 +54,7 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error
 	const query = `
 		SELECT
 			id::text,
+			sku,
 			name,
 			description,
 			price::float8,
@@ -67,6 +68,7 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error
 
 	err := r.pool.QueryRow(ctx, query, strings.TrimSpace(id)).Scan(
 		&item.ID,
+		&item.SKU,
 		&item.Name,
 		&item.Description,
 		&item.Price,
@@ -87,13 +89,15 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error
 func (r *PostgresRepository) Create(ctx context.Context, input CreateProductInput) (Product, error) {
 	const query = `
 		INSERT INTO products (
+			sku,
 			name,
 			description,
 			price
 		)
-		VALUES ($1, $2, $3)
+		VALUES ($1, $2, $3, $4)
 		RETURNING
 			id::text,
+			sku,
 			name,
 			description,
 			price::float8,
@@ -106,11 +110,13 @@ func (r *PostgresRepository) Create(ctx context.Context, input CreateProductInpu
 	err := r.pool.QueryRow(
 		ctx,
 		query,
+		input.SKU,
 		input.Name,
 		input.Description,
 		input.Price,
 	).Scan(
 		&item.ID,
+		&item.SKU,
 		&item.Name,
 		&item.Description,
 		&item.Price,
@@ -128,13 +134,15 @@ func (r *PostgresRepository) Update(ctx context.Context, id string, input Update
 	const query = `
 		UPDATE products
 		SET
-			name = $2,
-			description = $3,
-			price = $4,
+			sku = $2,
+			name = $3,
+			description = $4,
+			price = $5,
 			updated_at = NOW()
 		WHERE id::text = $1
 		RETURNING
 			id::text,
+			sku,
 			name,
 			description,
 			price::float8,
@@ -148,11 +156,13 @@ func (r *PostgresRepository) Update(ctx context.Context, id string, input Update
 		ctx,
 		query,
 		strings.TrimSpace(id),
+		input.SKU,
 		input.Name,
 		input.Description,
 		input.Price,
 	).Scan(
 		&item.ID,
+		&item.SKU,
 		&item.Name,
 		&item.Description,
 		&item.Price,
@@ -200,7 +210,8 @@ func (r *PostgresRepository) countProducts(ctx context.Context, search string) (
 
 	if search != "" {
 		query += `
-			WHERE name ILIKE '%' || $1 || '%'
+			WHERE sku ILIKE '%' || $1 || '%'
+			   OR name ILIKE '%' || $1 || '%'
 			   OR description ILIKE '%' || $1 || '%'
 		`
 
@@ -224,7 +235,8 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 	whereClause := ""
 	if input.Search != "" {
 		whereClause = `
-			WHERE name ILIKE '%' || $1 || '%'
+			WHERE sku ILIKE '%' || $1 || '%'
+			   OR name ILIKE '%' || $1 || '%'
 			   OR description ILIKE '%' || $1 || '%'
 		`
 
@@ -247,6 +259,7 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 	query := fmt.Sprintf(`
 		SELECT
 			id::text,
+			sku,
 			name,
 			description,
 			price::float8,
@@ -278,6 +291,7 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 
 		if err := rows.Scan(
 			&item.ID,
+			&item.SKU,
 			&item.Name,
 			&item.Description,
 			&item.Price,
@@ -299,6 +313,8 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 
 func postgresSortExpression(sortField string) string {
 	switch sortField {
+	case SortFieldSKU:
+		return "lower(sku)"
 	case SortFieldName:
 		return "lower(name)"
 	case SortFieldPrice:
