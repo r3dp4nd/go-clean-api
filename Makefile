@@ -38,7 +38,8 @@ MIGRATIONS_PATH?=db/migrations
 PRODUCTS_MIGRATION_UP?=db/migrations/000001_create_products_table.up.sql
 PRODUCTS_MIGRATION_DOWN?=db/migrations/000001_create_products_table.down.sql
 
-.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables
+.PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables
+
 help:
 	@echo "Comandos disponibles:"
 	@echo "  make run              - Ejecuta la API en modo desarrollo"
@@ -70,6 +71,8 @@ help:
 	@echo "  make db-tables        - Lista tablas de PostgreSQL"
 	@echo "  make db-migrate-version - Muestra versión actual de migraciones"
 	@echo "  make db-migrate-force   - Fuerza una versión de migración. Uso: make db-migrate-force VERSION=1"
+	@echo "  make test-integration - Ejecuta tests de integración contra PostgreSQL"
+	@echo "  make test-all         - Ejecuta tests unitarios + integración"
 
 run:
 	APP_NAME=$(APP_NAME) \
@@ -251,3 +254,9 @@ db-tables:
 		-f $(COMPOSE_FILE) \
 		exec postgres psql -U $(DB_USER) -d $(DB_NAME) \
 		-c "\dt"
+
+test-integration:
+	TEST_DATABASE_URL="$(DATABASE_URL)" \
+	go test -tags=integration ./internal/product -run Integration -count=1
+
+test-all: test test-integration

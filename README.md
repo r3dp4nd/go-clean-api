@@ -370,3 +370,13 @@ Herramienta:
 ```text
 golang-migrate/migrate
 ```
+
+## Tests de integración
+
+El proyecto separa tests unitarios y tests de integración.
+
+### Tests unitarios
+
+```bash
+make test
+```
