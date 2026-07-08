@@ -19,7 +19,35 @@ func newTestHTTPHandler() http.Handler {
 
 	registerRoutes(mux, handlers)
 
+	corsOptions := CORSOptions{
+		Enabled: true,
+		AllowedOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"http://localhost:4200",
+		},
+		AllowedMethods: []string{
+			"GET",
+			"POST",
+			"PUT",
+			"DELETE",
+			"OPTIONS",
+		},
+		AllowedHeaders: []string{
+			"Content-Type",
+			"Authorization",
+			"X-Request-ID",
+		},
+		MaxAgeSeconds: 600,
+	}
+
 	return requestIDMiddleware(
-		loggingMiddleware(logger, recoveryMiddleware(logger, mux)),
+		loggingMiddleware(
+			logger,
+			recoveryMiddleware(
+				logger,
+				corsMiddleware(corsOptions, mux),
+			),
+		),
 	)
 }

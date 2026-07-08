@@ -44,6 +44,13 @@ func (a *App) Run() error {
 		IdleTimeout:       a.config.HTTP.IdleTimeout,
 		Logger:            a.logger,
 		ProductService:    productService,
+		CORS: server.CORSOptions{
+			Enabled:        a.config.CORS.Enabled,
+			AllowedOrigins: a.config.CORS.AllowedOrigins,
+			AllowedMethods: a.config.CORS.AllowedMethods,
+			AllowedHeaders: a.config.CORS.AllowedHeaders,
+			MaxAgeSeconds:  a.config.CORS.MaxAgeSeconds,
+		},
 	})
 
 	serverErrors := make(chan error, 1)

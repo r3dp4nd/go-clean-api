@@ -13,6 +13,7 @@ const (
 	errorCodeMethodNotAllowed = "method_not_allowed"
 	errorCodeInvalidRequest   = "invalid_request"
 	errorCodeValidation       = "validation_error"
+	errorCodeForbidden        = "forbidden"
 	errorCodeInternal         = "internal_error"
 )
 
