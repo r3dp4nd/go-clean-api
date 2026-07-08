@@ -10,7 +10,7 @@ HTTP_SHUTDOWN_TIMEOUT_SECONDS?=10
 LOG_LEVEL?=info
 LOG_FORMAT?=text
 
-.PHONY: help run build clean test test-v test-cover fmt vet tidy
+.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy
 
 help:
 	@echo "Comandos disponibles:"
@@ -20,6 +20,7 @@ help:
 	@echo "  make test       - Ejecuta los tests"
 	@echo "  make test-v     - Ejecuta los tests en modo verbose"
 	@echo "  make test-cover - Ejecuta tests con cobertura"
+	@echo "  make test-race  - Ejecuta tests con detector de race conditions"
 	@echo "  make fmt        - Formatea el código Go"
 	@echo "  make vet        - Analiza problemas comunes en el código"
 	@echo "  make tidy       - Ordena dependencias del módulo"
@@ -51,6 +52,9 @@ test-v:
 
 test-cover:
 	go test -cover ./...
+
+test-race:
+	go test -race ./...
 
 fmt:
 	go fmt ./...

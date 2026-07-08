@@ -165,3 +165,20 @@ La API usa `net/http/httptest` para probar handlers HTTP sin levantar un servido
 ```bash
 make test
 ```
+
+## Tests del paquete product
+
+El paquete `internal/product` contiene tests unitarios del store en memoria.
+
+Casos cubiertos:
+
+```text
+Create
+List
+Get
+Update
+Delete
+ErrNotFound
+Context cancelado
+Concurrencia básica
+```
