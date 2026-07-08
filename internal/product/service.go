@@ -10,14 +10,6 @@ const (
 	maxProductDescriptionLength = 500
 )
 
-type Repository interface {
-	List(ctx context.Context) ([]Product, error)
-	Get(ctx context.Context, id string) (Product, error)
-	Create(ctx context.Context, input CreateProductInput) (Product, error)
-	Update(ctx context.Context, id string, input UpdateProductInput) (Product, error)
-	Delete(ctx context.Context, id string) error
-}
-
 type Service struct {
 	repository Repository
 }

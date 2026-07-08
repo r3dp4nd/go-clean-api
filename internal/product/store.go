@@ -17,6 +17,8 @@ type Store struct {
 	nextID   int64
 }
 
+var _ Repository = (*Store)(nil)
+
 func NewStore() *Store {
 	return &Store{
 		products: make(map[string]Product),

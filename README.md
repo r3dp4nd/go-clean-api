@@ -208,3 +208,17 @@ El módulo `Products` usa una separación por capas:
 ```text
 HTTP Handler → Product Service → Product Repository
 ```
+
+## Repository interface y fakes para tests
+
+El módulo `Products` usa una interfaz `Repository` para desacoplar el service de la persistencia concreta.
+
+```go
+type Repository interface {
+	List(ctx context.Context) ([]Product, error)
+	Get(ctx context.Context, id string) (Product, error)
+	Create(ctx context.Context, input CreateProductInput) (Product, error)
+	Update(ctx context.Context, id string, input UpdateProductInput) (Product, error)
+	Delete(ctx context.Context, id string) error
+}
+```
