@@ -35,10 +35,9 @@ DB_SSL_MODE?=disable
 DATABASE_URL?=postgres://$(DB_USER):$(DB_PASSWORD)@localhost:$(POSTGRES_PORT)/$(DB_NAME)?sslmode=$(DB_SSL_MODE)
 MIGRATIONS_PATH?=db/migrations
 
-PRODUCTS_MIGRATION_UP?=db/migrations/000001_create_products_table.up.sql
-PRODUCTS_MIGRATION_DOWN?=db/migrations/000001_create_products_table.down.sql
+SEED_PRODUCTS_TRUNCATE?=true
 
-.PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables
+.PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables seed-products
 
 help:
 	@echo "Comandos disponibles:"
@@ -73,6 +72,7 @@ help:
 	@echo "  make db-migrate-force   - Fuerza una versión de migración. Uso: make db-migrate-force VERSION=1"
 	@echo "  make test-integration - Ejecuta tests de integración contra PostgreSQL"
 	@echo "  make test-all         - Ejecuta tests unitarios + integración"
+	@echo "  make seed-products     - Inserta productos de prueba en PostgreSQL"
 
 run:
 	APP_NAME=$(APP_NAME) \
@@ -260,3 +260,26 @@ test-integration:
 	go test -tags=integration ./internal/product -run Integration -count=1
 
 test-all: test test-integration
+
+seed-products:
+	APP_NAME=$(APP_NAME) \
+	APP_VERSION=$(APP_VERSION) \
+	APP_ENV=development \
+	HTTP_HOST=$(HTTP_HOST) \
+	HTTP_PORT=$(HTTP_PORT) \
+	HTTP_SHUTDOWN_TIMEOUT_SECONDS=$(HTTP_SHUTDOWN_TIMEOUT_SECONDS) \
+	LOG_LEVEL=$(LOG_LEVEL) \
+	LOG_FORMAT=$(LOG_FORMAT) \
+	CORS_ENABLED=$(CORS_ENABLED) \
+	CORS_ALLOWED_ORIGINS="$(CORS_ALLOWED_ORIGINS)" \
+	CORS_ALLOWED_METHODS="$(CORS_ALLOWED_METHODS)" \
+	CORS_ALLOWED_HEADERS="$(CORS_ALLOWED_HEADERS)" \
+	CORS_MAX_AGE_SECONDS=$(CORS_MAX_AGE_SECONDS) \
+	DB_HOST=localhost \
+	DB_PORT=$(POSTGRES_PORT) \
+	DB_NAME=$(DB_NAME) \
+	DB_USER=$(DB_USER) \
+	DB_PASSWORD=$(DB_PASSWORD) \
+	DB_SSL_MODE=$(DB_SSL_MODE) \
+	SEED_PRODUCTS_TRUNCATE=$(SEED_PRODUCTS_TRUNCATE) \
+	go run ./cmd/seed/products

@@ -380,3 +380,13 @@ El proyecto separa tests unitarios y tests de integración.
 ```bash
 make test
 ```
+
+## Seed de productos
+
+El proyecto incluye un comando para poblar PostgreSQL con productos de prueba.
+
+Archivo principal:
+
+```text
+cmd/seed/products/main.go
+```
