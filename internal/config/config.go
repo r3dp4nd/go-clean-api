@@ -9,10 +9,11 @@ import (
 )
 
 type Config struct {
-	App  AppConfig
-	HTTP HTTPConfig
-	Log  LogConfig
-	CORS CORSConfig
+	App      AppConfig
+	HTTP     HTTPConfig
+	Log      LogConfig
+	CORS     CORSConfig
+	Database DatabaseConfig
 }
 
 type AppConfig struct {
@@ -46,6 +47,16 @@ type CORSConfig struct {
 	MaxAgeSeconds  int
 }
 
+type DatabaseConfig struct {
+	Host     string
+	Port     int
+	Name     string
+	User     string
+	Password string
+	SSLMode  string
+	DSN      string
+}
+
 func Load() (*Config, error) {
 	httpPort, err := getEnvAsInt("HTTP_PORT", 8080)
 	if err != nil {
@@ -75,7 +86,27 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("CORS_MAX_AGE_SECONDS must be greater than or equal to zero")
 	}
 
+	dbPort, err := getEnvAsInt("DB_PORT", 5432)
+	if err != nil {
+		return nil, err
+	}
+
+	if dbPort <= 0 {
+		return nil, fmt.Errorf("DB_PORT must be greater than zero")
+	}
+
 	httpHost := getEnv("HTTP_HOST", "")
+
+	dbConfig := DatabaseConfig{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     dbPort,
+		Name:     getEnv("DB_NAME", "go_clean_api"),
+		User:     getEnv("DB_USER", "app"),
+		Password: getEnv("DB_PASSWORD", "app"),
+		SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+	}
+
+	dbConfig.DSN = buildPostgresDSN(dbConfig)
 
 	cfg := &Config{
 		App: AppConfig{
@@ -128,9 +159,22 @@ func Load() (*Config, error) {
 			),
 			MaxAgeSeconds: corsMaxAgeSeconds,
 		},
+		Database: dbConfig,
 	}
 
 	return cfg, nil
+}
+
+func buildPostgresDSN(cfg DatabaseConfig) string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		cfg.User,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.Name,
+		cfg.SSLMode,
+	)
 }
 
 func getEnv(key string, fallback string) string {

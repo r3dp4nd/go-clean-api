@@ -319,3 +319,14 @@ La API puede levantarse con Docker Compose usando:
 ```bash
 make compose-up
 ```
+
+## PostgreSQL con Docker Compose
+
+El proyecto incluye PostgreSQL dentro de Docker Compose.
+
+Servicios actuales:
+
+```text
+api
+postgres
+```

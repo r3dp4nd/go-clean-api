@@ -25,6 +25,16 @@ services:
       CORS_ALLOWED_METHODS: "${CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS}"
       CORS_ALLOWED_HEADERS: "${CORS_ALLOWED_HEADERS:-Content-Type,Authorization,X-Request-ID}"
       CORS_MAX_AGE_SECONDS: "${CORS_MAX_AGE_SECONDS:-600}"
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: "${DB_NAME:-go_clean_api}"
+      DB_USER: "${DB_USER:-app}"
+      DB_PASSWORD: "${DB_PASSWORD:-app}"
+      DB_SSL_MODE: "${DB_SSL_MODE:-disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -32,3 +42,24 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: "${DB_NAME:-go_clean_api}"
+      POSTGRES_USER: "${DB_USER:-app}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-app}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
