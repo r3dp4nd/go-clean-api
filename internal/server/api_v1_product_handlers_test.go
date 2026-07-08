@@ -1507,6 +1507,284 @@ func TestProductSKUExistsMethodNotAllowed(t *testing.T) {
 	}
 }
 
+func TestPatchProductPartialUpdate(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "PATCH-LAPTOP-001",
+		"name": "Laptop",
+		"description": "Laptop básica",
+		"price": 3500
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	patchBody := []byte(`{
+		"name": "Laptop Pro",
+		"price": 4200
+	}`)
+
+	patchRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/"+createdProduct.ID,
+		bytes.NewReader(patchBody),
+	)
+	patchRequest.Header.Set("Content-Type", "application/json")
+	patchRequest.Header.Set(requestIDHeader, "patch-product")
+
+	patchRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(patchRecorder, patchRequest)
+
+	if patchRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, patchRecorder.Code, patchRecorder.Body.String())
+	}
+
+	updatedProduct := decodeProductResourceResponse(t, patchRecorder)
+
+	if updatedProduct.ID != createdProduct.ID {
+		t.Fatalf("expected id %q, got %q", createdProduct.ID, updatedProduct.ID)
+	}
+
+	if updatedProduct.SKU != "PATCH-LAPTOP-001" {
+		t.Fatalf("expected sku to be preserved, got %q", updatedProduct.SKU)
+	}
+
+	if updatedProduct.Name != "Laptop Pro" {
+		t.Fatalf("expected name %q, got %q", "Laptop Pro", updatedProduct.Name)
+	}
+
+	if updatedProduct.Description != "Laptop básica" {
+		t.Fatalf("expected description to be preserved, got %q", updatedProduct.Description)
+	}
+
+	if updatedProduct.Price != 4200 {
+		t.Fatalf("expected price %v, got %v", 4200.0, updatedProduct.Price)
+	}
+}
+
+func TestPatchProductEmptyBodyReturnsValidationError(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "PATCH-EMPTY-001",
+		"name": "Laptop",
+		"description": "Laptop básica",
+		"price": 3500
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	patchRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/"+createdProduct.ID,
+		bytes.NewReader([]byte(`{}`)),
+	)
+	patchRequest.Header.Set("Content-Type", "application/json")
+	patchRequest.Header.Set(requestIDHeader, "patch-empty-body")
+
+	patchRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(patchRecorder, patchRequest)
+
+	if patchRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, patchRecorder.Code, patchRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(patchRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "body" {
+		t.Fatalf("expected field %q, got %q", "body", response.Error.Fields[0].Field)
+	}
+}
+
+func TestPatchProductNotFound(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	patchBody := []byte(`{
+		"name": "Laptop Pro"
+	}`)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/999",
+		bytes.NewReader(patchBody),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(requestIDHeader, "patch-product-not-found")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNotFound, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, response.Error.Code)
+	}
+
+	if response.Error.Message != "product not found" {
+		t.Fatalf("expected message %q, got %q", "product not found", response.Error.Message)
+	}
+}
+
+func TestPatchProductDuplicateSKUReturnsConflict(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	firstBody := []byte(`{
+		"sku": "PATCH-DUPLICATE-001",
+		"name": "Producto 1",
+		"description": "Primer producto",
+		"price": 100
+	}`)
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(firstBody),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	if firstRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, firstRecorder.Code, firstRecorder.Body.String())
+	}
+
+	secondBody := []byte(`{
+		"sku": "PATCH-DUPLICATE-002",
+		"name": "Producto 2",
+		"description": "Segundo producto",
+		"price": 200
+	}`)
+
+	secondRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(secondBody),
+	)
+	secondRequest.Header.Set("Content-Type", "application/json")
+
+	secondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if secondRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, secondRecorder.Code, secondRecorder.Body.String())
+	}
+
+	secondProduct := decodeProductResourceResponse(t, secondRecorder)
+
+	patchBody := []byte(`{
+		"sku": "PATCH-DUPLICATE-001"
+	}`)
+
+	patchRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/"+secondProduct.ID,
+		bytes.NewReader(patchBody),
+	)
+	patchRequest.Header.Set("Content-Type", "application/json")
+	patchRequest.Header.Set(requestIDHeader, "patch-duplicate-sku")
+
+	patchRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(patchRecorder, patchRequest)
+
+	if patchRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusConflict, patchRecorder.Code, patchRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(patchRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeConflict {
+		t.Fatalf("expected error code %q, got %q", errorCodeConflict, response.Error.Code)
+	}
+
+	if response.Error.Message != "product sku already exists" {
+		t.Fatalf("expected message %q, got %q", "product sku already exists", response.Error.Message)
+	}
+}
+
+func TestPatchProductInvalidJSON(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/1",
+		bytes.NewReader([]byte(`{"name":`)),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(requestIDHeader, "patch-invalid-json")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusBadRequest, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeInvalidRequest {
+		t.Fatalf("expected error code %q, got %q", errorCodeInvalidRequest, response.Error.Code)
+	}
+}
+
 func decodeProductResourceResponse(t *testing.T, recorder *httptest.ResponseRecorder) ProductResponse {
 	t.Helper()
 

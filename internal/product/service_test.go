@@ -1023,3 +1023,233 @@ func TestServiceSKUExistsRepositoryError(t *testing.T) {
 		t.Fatalf("expected repository error, got %v", err)
 	}
 }
+
+func TestServicePatchProductMergesExistingProduct(t *testing.T) {
+	now := time.Now().UTC()
+
+	newName := "Laptop Pro"
+	newPrice := 4200.0
+
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			if id != "123" {
+				t.Fatalf("expected id %q, got %q", "123", id)
+			}
+
+			return Product{
+				ID:          id,
+				SKU:         "LAPTOP-001",
+				Name:        "Laptop",
+				Description: "Laptop básica",
+				Price:       3500,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			if id != "123" {
+				t.Fatalf("expected id %q, got %q", "123", id)
+			}
+
+			if input.SKU != "LAPTOP-001" {
+				t.Fatalf("expected preserved sku %q, got %q", "LAPTOP-001", input.SKU)
+			}
+
+			if input.Name != newName {
+				t.Fatalf("expected patched name %q, got %q", newName, input.Name)
+			}
+
+			if input.Description != "Laptop básica" {
+				t.Fatalf("expected preserved description %q, got %q", "Laptop básica", input.Description)
+			}
+
+			if input.Price != newPrice {
+				t.Fatalf("expected patched price %v, got %v", newPrice, input.Price)
+			}
+
+			return Product{
+				ID:          id,
+				SKU:         input.SKU,
+				Name:        input.Name,
+				Description: input.Description,
+				Price:       input.Price,
+				CreatedAt:   now,
+				UpdatedAt:   time.Now().UTC(),
+			}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	item, err := service.Patch(context.Background(), "  123  ", PatchProductInput{
+		Name:  &newName,
+		Price: &newPrice,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.getCalls != 1 {
+		t.Fatalf("expected Get to be called once, got %d", repository.getCalls)
+	}
+
+	if repository.updateCalls != 1 {
+		t.Fatalf("expected Update to be called once, got %d", repository.updateCalls)
+	}
+
+	if item.Name != newName {
+		t.Fatalf("expected name %q, got %q", newName, item.Name)
+	}
+
+	if item.Price != newPrice {
+		t.Fatalf("expected price %v, got %v", newPrice, item.Price)
+	}
+}
+
+func TestServicePatchProductNormalizesSKU(t *testing.T) {
+	now := time.Now().UTC()
+
+	newSKU := "  laptop-pro-001  "
+
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         "LAPTOP-001",
+				Name:        "Laptop",
+				Description: "Laptop básica",
+				Price:       3500,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			if input.SKU != "LAPTOP-PRO-001" {
+				t.Fatalf("expected normalized sku %q, got %q", "LAPTOP-PRO-001", input.SKU)
+			}
+
+			return Product{
+				ID:          id,
+				SKU:         input.SKU,
+				Name:        input.Name,
+				Description: input.Description,
+				Price:       input.Price,
+				CreatedAt:   now,
+				UpdatedAt:   time.Now().UTC(),
+			}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	item, err := service.Patch(context.Background(), "123", PatchProductInput{
+		SKU: &newSKU,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if item.SKU != "LAPTOP-PRO-001" {
+		t.Fatalf("expected sku %q, got %q", "LAPTOP-PRO-001", item.SKU)
+	}
+}
+
+func TestServicePatchProductEmptyBodyDoesNotCallRepository(t *testing.T) {
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			t.Fatal("repository Get should not be called when patch body is empty")
+			return Product{}, nil
+		},
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			t.Fatal("repository Update should not be called when patch body is empty")
+			return Product{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Patch(context.Background(), "123", PatchProductInput{})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.getCalls != 0 {
+		t.Fatalf("expected Get not to be called, got %d calls", repository.getCalls)
+	}
+
+	if repository.updateCalls != 0 {
+		t.Fatalf("expected Update not to be called, got %d calls", repository.updateCalls)
+	}
+
+	if len(validationErr.Fields) != 1 {
+		t.Fatalf("expected 1 field violation, got %d", len(validationErr.Fields))
+	}
+
+	if validationErr.Fields[0].Field != "body" {
+		t.Fatalf("expected field %q, got %q", "body", validationErr.Fields[0].Field)
+	}
+}
+
+func TestServicePatchProductNotFound(t *testing.T) {
+	newName := "Laptop Pro"
+
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{}, ErrNotFound
+		},
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			t.Fatal("repository Update should not be called when product is not found")
+			return Product{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Patch(context.Background(), "999", PatchProductInput{
+		Name: &newName,
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	if repository.getCalls != 1 {
+		t.Fatalf("expected Get to be called once, got %d", repository.getCalls)
+	}
+
+	if repository.updateCalls != 0 {
+		t.Fatalf("expected Update not to be called, got %d calls", repository.updateCalls)
+	}
+}
+
+func TestServicePatchProductDuplicateSKU(t *testing.T) {
+	newSKU := "DUPLICATE-SKU"
+
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         "CURRENT-SKU",
+				Name:        "Laptop",
+				Description: "Laptop básica",
+				Price:       3500,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			return Product{}, ErrSKUAlreadyExists
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Patch(context.Background(), "123", PatchProductInput{
+		SKU: &newSKU,
+	})
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}

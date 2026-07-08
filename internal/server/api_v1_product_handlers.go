@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -40,11 +41,14 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 	case http.MethodPut:
 		h.updateProduct(w, r, id)
 
+	case http.MethodPatch:
+		h.patchProduct(w, r, id)
+
 	case http.MethodDelete:
 		h.deleteProduct(w, r, id)
 
 	default:
-		writeMethodNotAllowed(w, r, "GET, PUT, DELETE")
+		writeMethodNotAllowed(w, r, "GET, PUT, PATCH, DELETE")
 	}
 }
 
@@ -253,6 +257,50 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 		}
 
 		h.logger.Error("error updating product", "error", err, "request_id", getRequestID(r.Context()))
+		writeInternalError(w, r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
+}
+
+func (h *Handler) patchProduct(w http.ResponseWriter, r *http.Request, id string) {
+	var request PatchProductRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, r, http.StatusBadRequest, errorCodeInvalidRequest, "invalid JSON body")
+		return
+	}
+
+	item, err := h.productService.Patch(r.Context(), id, product.PatchProductInput{
+		SKU:         request.SKU,
+		Name:        request.Name,
+		Description: request.Description,
+		Price:       request.Price,
+	})
+	if err != nil {
+		if validationErr, ok := err.(product.ValidationError); ok {
+			writeProductValidationError(w, r, validationErr)
+			return
+		}
+
+		if errors.Is(err, product.ErrNotFound) {
+			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
+			return
+		}
+
+		if errors.Is(err, product.ErrSKUAlreadyExists) {
+			writeError(
+				w,
+				r,
+				http.StatusConflict,
+				errorCodeConflict,
+				"product sku already exists",
+			)
+			return
+		}
+
+		h.logger.Error("error patching product", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
 		return
 	}

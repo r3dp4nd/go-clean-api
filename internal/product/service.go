@@ -118,6 +118,45 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateProductInpu
 	return s.repository.Update(ctx, strings.TrimSpace(id), normalizedInput)
 }
 
+func (s *Service) Patch(ctx context.Context, id string, input PatchProductInput) (Product, error) {
+	normalizedInput, err := normalizePatchProductInput(input)
+	if err != nil {
+		return Product{}, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+
+	existingProduct, err := s.repository.Get(ctx, trimmedID)
+	if err != nil {
+		return Product{}, err
+	}
+
+	updateInput := UpdateProductInput{
+		SKU:         existingProduct.SKU,
+		Name:        existingProduct.Name,
+		Description: existingProduct.Description,
+		Price:       existingProduct.Price,
+	}
+
+	if normalizedInput.SKU != nil {
+		updateInput.SKU = *normalizedInput.SKU
+	}
+
+	if normalizedInput.Name != nil {
+		updateInput.Name = *normalizedInput.Name
+	}
+
+	if normalizedInput.Description != nil {
+		updateInput.Description = *normalizedInput.Description
+	}
+
+	if normalizedInput.Price != nil {
+		updateInput.Price = *normalizedInput.Price
+	}
+
+	return s.Update(ctx, trimmedID, updateInput)
+}
+
 func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.repository.Delete(ctx, strings.TrimSpace(id))
 }
@@ -239,6 +278,98 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 	}
 
 	return input, nil
+}
+
+func normalizePatchProductInput(input PatchProductInput) (PatchProductInput, error) {
+	var fields []FieldViolation
+
+	normalizedInput := PatchProductInput{}
+	hasAnyField := false
+
+	if input.SKU != nil {
+		hasAnyField = true
+
+		value := normalizeSKU(*input.SKU)
+		normalizedInput.SKU = &value
+
+		if value == "" {
+			fields = append(fields, FieldViolation{
+				Field:   "sku",
+				Message: "sku is required",
+			})
+		}
+
+		if len(value) > maxProductSKULength {
+			fields = append(fields, FieldViolation{
+				Field:   "sku",
+				Message: "sku must be less than or equal to 64 characters",
+			})
+		}
+	}
+
+	if input.Name != nil {
+		hasAnyField = true
+
+		value := strings.TrimSpace(*input.Name)
+		normalizedInput.Name = &value
+
+		if value == "" {
+			fields = append(fields, FieldViolation{
+				Field:   "name",
+				Message: "name is required",
+			})
+		}
+
+		if len(value) > maxProductNameLength {
+			fields = append(fields, FieldViolation{
+				Field:   "name",
+				Message: "name must be less than or equal to 120 characters",
+			})
+		}
+	}
+
+	if input.Description != nil {
+		hasAnyField = true
+
+		value := strings.TrimSpace(*input.Description)
+		normalizedInput.Description = &value
+
+		if len(value) > maxProductDescriptionLength {
+			fields = append(fields, FieldViolation{
+				Field:   "description",
+				Message: "description must be less than or equal to 500 characters",
+			})
+		}
+	}
+
+	if input.Price != nil {
+		hasAnyField = true
+
+		value := *input.Price
+		normalizedInput.Price = &value
+
+		if value < 0 {
+			fields = append(fields, FieldViolation{
+				Field:   "price",
+				Message: "price must be greater than or equal to zero",
+			})
+		}
+	}
+
+	if !hasAnyField {
+		fields = append(fields, FieldViolation{
+			Field:   "body",
+			Message: "at least one field must be provided",
+		})
+	}
+
+	if len(fields) > 0 {
+		return PatchProductInput{}, ValidationError{
+			Fields: fields,
+		}
+	}
+
+	return normalizedInput, nil
 }
 
 func IsSupportedSortField(value string) bool {

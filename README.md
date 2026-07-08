@@ -454,3 +454,13 @@ Endpoint:
 ```text
 GET /api/v1/products/exists?sku=<SKU>
 ```
+
+## Actualización parcial de productos
+
+La API soporta actualización parcial con `PATCH`.
+
+Endpoint:
+
+```text
+PATCH /api/v1/products/{id}
+```

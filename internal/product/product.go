@@ -26,6 +26,13 @@ type UpdateProductInput struct {
 	Price       float64
 }
 
+type PatchProductInput struct {
+	SKU         *string
+	Name        *string
+	Description *string
+	Price       *float64
+}
+
 type ListProductsInput struct {
 	Page        int
 	PageSize    int
