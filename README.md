@@ -330,3 +330,13 @@ Servicios actuales:
 api
 postgres
 ```
+
+## Conexión a PostgreSQL con pgx
+
+La API usa `pgxpool` para conectarse a PostgreSQL.
+
+Dependencia principal:
+
+```text
+github.com/jackc/pgx/v5/pgxpool
+```

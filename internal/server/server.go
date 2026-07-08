@@ -18,6 +18,7 @@ type Options struct {
 	IdleTimeout       time.Duration
 	Logger            *slog.Logger
 	ProductService    *product.Service
+	ReadinessChecker  ReadinessChecker
 	CORS              CORSOptions
 }
 
@@ -29,17 +30,27 @@ type Server struct {
 func New(options Options) *Server {
 	mux := http.NewServeMux()
 
-	handlers := NewHandler(options.Logger, options.ProductService)
+	handlers := NewHandler(
+		options.Logger,
+		options.ProductService,
+		options.ReadinessChecker,
+	)
 
 	registerRoutes(mux, handlers)
 
-	handler := requestIDMiddleware(
-		loggingMiddleware(options.Logger, recoveryMiddleware(options.Logger, corsMiddleware(options.CORS, mux))),
+	handlerChain := requestIDMiddleware(
+		loggingMiddleware(
+			options.Logger,
+			recoveryMiddleware(
+				options.Logger,
+				corsMiddleware(options.CORS, mux),
+			),
+		),
 	)
 
 	httpServer := &http.Server{
 		Addr:              options.Addr,
-		Handler:           handler,
+		Handler:           handlerChain,
 		ReadHeaderTimeout: options.ReadHeaderTimeout,
 		ReadTimeout:       options.ReadTimeout,
 		WriteTimeout:      options.WriteTimeout,

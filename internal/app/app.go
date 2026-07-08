@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/r3dp4nd/go-clean-api/internal/config"
+	"github.com/r3dp4nd/go-clean-api/internal/database"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 	"github.com/r3dp4nd/go-clean-api/internal/server"
 )
@@ -32,6 +33,23 @@ func (a *App) Run() error {
 		"environment", a.config.App.Environment,
 		"shutdown_timeout_seconds", a.config.HTTP.ShutdownTimeoutSeconds,
 	)
+
+	a.logger.Info(
+		"database config loaded",
+		"host", a.config.Database.Host,
+		"port", a.config.Database.Port,
+		"name", a.config.Database.Name,
+		"ssl_mode", a.config.Database.SSLMode,
+	)
+
+	postgresPool, err := database.OpenPostgresPool(context.Background(), a.config.Database.DSN)
+	if err != nil {
+		a.logger.Error("error connecting to postgres", "error", err)
+		return err
+	}
+	defer postgresPool.Close()
+
+	a.logger.Info("postgres connection established")
 
 	productStore := product.NewStore()
 	productService := product.NewService(productStore)

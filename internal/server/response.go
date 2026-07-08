@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	errorCodeNotFound         = "not_found"
-	errorCodeMethodNotAllowed = "method_not_allowed"
-	errorCodeInvalidRequest   = "invalid_request"
-	errorCodeValidation       = "validation_error"
-	errorCodeForbidden        = "forbidden"
-	errorCodeInternal         = "internal_error"
+	errorCodeNotFound           = "not_found"
+	errorCodeMethodNotAllowed   = "method_not_allowed"
+	errorCodeInvalidRequest     = "invalid_request"
+	errorCodeValidation         = "validation_error"
+	errorCodeForbidden          = "forbidden"
+	errorCodeServiceUnavailable = "service_unavailable"
+	errorCodeInternal           = "internal_error"
 )
 
 func writeJSON(w http.ResponseWriter, statusCode int, data any) {

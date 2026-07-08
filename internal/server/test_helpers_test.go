@@ -1,12 +1,21 @@
 package server
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
+
+type fakeReadinessChecker struct {
+	err error
+}
+
+func (f fakeReadinessChecker) Ping(ctx context.Context) error {
+	return f.err
+}
 
 func newTestHTTPHandler() http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -15,7 +24,11 @@ func newTestHTTPHandler() http.Handler {
 
 	mux := http.NewServeMux()
 
-	handlers := NewHandler(logger, productService)
+	handlers := NewHandler(
+		logger,
+		productService,
+		fakeReadinessChecker{},
+	)
 
 	registerRoutes(mux, handlers)
 

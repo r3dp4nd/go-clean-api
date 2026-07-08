@@ -1,21 +1,28 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
-type Handler struct {
-	logger         *slog.Logger
-	productService *product.Service
+type ReadinessChecker interface {
+	Ping(ctx context.Context) error
 }
 
-func NewHandler(logger *slog.Logger, productService *product.Service) *Handler {
+type Handler struct {
+	logger           *slog.Logger
+	productService   *product.Service
+	readinessChecker ReadinessChecker
+}
+
+func NewHandler(logger *slog.Logger, productService *product.Service, readinessChecker ReadinessChecker) *Handler {
 	return &Handler{
-		logger:         logger,
-		productService: productService,
+		logger:           logger,
+		productService:   productService,
+		readinessChecker: readinessChecker,
 	}
 }
 
