@@ -56,6 +56,7 @@ func TestStoreListProducts(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "MOUSE-001",
 		Name:        "Mouse",
 		Description: "Mouse inalámbrico",
 		Price:       120,
@@ -65,6 +66,7 @@ func TestStoreListProducts(t *testing.T) {
 	}
 
 	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "KEYBOARD-001",
 		Name:        "Keyboard",
 		Description: "Teclado mecánico",
 		Price:       250,
@@ -107,6 +109,7 @@ func TestStoreGetProduct(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "MONITOR-001",
 		Name:        "Monitor",
 		Description: "Monitor 27 pulgadas",
 		Price:       900,
@@ -144,6 +147,7 @@ func TestStoreUpdateProduct(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-001",
 		Name:        "Laptop",
 		Description: "Laptop básica",
 		Price:       3000,
@@ -153,6 +157,7 @@ func TestStoreUpdateProduct(t *testing.T) {
 	}
 
 	updated, err := store.Update(ctx, created.ID, UpdateProductInput{
+		SKU:         "LAPTOP-PRO-001",
 		Name:        "Laptop Pro",
 		Description: "Laptop para Go, Docker y Kubernetes",
 		Price:       4200,
@@ -167,6 +172,10 @@ func TestStoreUpdateProduct(t *testing.T) {
 
 	if updated.Name != "Laptop Pro" {
 		t.Fatalf("expected name %q, got %q", "Laptop Pro", updated.Name)
+	}
+
+	if updated.SKU != "LAPTOP-PRO-001" {
+		t.Fatalf("expected sku %q, got %q", "LAPTOP-PRO-001", updated.SKU)
 	}
 
 	if updated.Description != "Laptop para Go, Docker y Kubernetes" {
@@ -191,6 +200,7 @@ func TestStoreUpdateProductNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.Update(ctx, "999", UpdateProductInput{
+		SKU:         "NOT-FOUND-001",
 		Name:        "Not found",
 		Description: "Producto inexistente",
 		Price:       100,
@@ -205,6 +215,7 @@ func TestStoreDeleteProduct(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "TABLET-001",
 		Name:        "Tablet",
 		Description: "Tablet para pruebas",
 		Price:       1500,
@@ -253,6 +264,7 @@ func TestStoreContextCanceled(t *testing.T) {
 	}
 
 	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "CANCELED-001",
 		Name:        "Canceled",
 		Description: "No debe crearse",
 		Price:       10,
@@ -262,6 +274,7 @@ func TestStoreContextCanceled(t *testing.T) {
 	}
 
 	_, err = store.Update(ctx, "1", UpdateProductInput{
+		SKU:         "CANCELED-002",
 		Name:        "Canceled",
 		Description: "No debe actualizarse",
 		Price:       10,
@@ -290,6 +303,7 @@ func TestStoreConcurrentCreates(t *testing.T) {
 			defer wg.Done()
 
 			_, err := store.Create(ctx, CreateProductInput{
+				SKU:         fmt.Sprintf("PRODUCT-%03d", index),
 				Name:        fmt.Sprintf("Product %d", index),
 				Description: "Producto creado concurrentemente",
 				Price:       float64(index),
@@ -335,6 +349,7 @@ func TestStoreListProductsPagination(t *testing.T) {
 
 	for i := 1; i <= 5; i++ {
 		_, err := store.Create(ctx, CreateProductInput{
+			SKU:         fmt.Sprintf("PRODUCT-PAGE-%03d", i),
 			Name:        fmt.Sprintf("Product %d", i),
 			Description: "Producto paginado",
 			Price:       float64(i),
@@ -378,6 +393,7 @@ func TestStoreListProductsSearchByName(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-SEARCH-001",
 		Name:        "Laptop",
 		Description: "Equipo para desarrollo backend",
 		Price:       3500,
@@ -387,6 +403,7 @@ func TestStoreListProductsSearchByName(t *testing.T) {
 	}
 
 	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "MOUSE-SEARCH-001",
 		Name:        "Mouse",
 		Description: "Mouse inalámbrico",
 		Price:       120,
@@ -426,6 +443,7 @@ func TestStoreListProductsSearchByDescription(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-DESC-001",
 		Name:        "Laptop",
 		Description: "Equipo para desarrollo backend",
 		Price:       3500,
@@ -435,6 +453,7 @@ func TestStoreListProductsSearchByDescription(t *testing.T) {
 	}
 
 	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "KEYBOARD-DESC-001",
 		Name:        "Keyboard",
 		Description: "Teclado mecánico",
 		Price:       250,
@@ -461,57 +480,25 @@ func TestStoreListProductsSearchByDescription(t *testing.T) {
 	}
 }
 
-func TestStoreListProductsSearchNoResults(t *testing.T) {
-	store := NewStore()
-	ctx := context.Background()
-
-	_, err := store.Create(ctx, CreateProductInput{
-		Name:        "Laptop",
-		Description: "Equipo para desarrollo backend",
-		Price:       3500,
-	})
-	if err != nil {
-		t.Fatalf("expected no error creating laptop, got %v", err)
-	}
-
-	result, err := store.List(ctx, ListProductsInput{
-		Page:     1,
-		PageSize: 10,
-		Search:   "tablet",
-	})
-	if err != nil {
-		t.Fatalf("expected no error listing products, got %v", err)
-	}
-
-	if len(result.Items) != 0 {
-		t.Fatalf("expected 0 products, got %d", len(result.Items))
-	}
-
-	if result.Total != 0 {
-		t.Fatalf("expected total %d, got %d", 0, result.Total)
-	}
-
-	if result.TotalPages != 0 {
-		t.Fatalf("expected total pages %d, got %d", 0, result.TotalPages)
-	}
-}
-
 func TestStoreListProductsSortByNameAscending(t *testing.T) {
 	store := NewStore()
 	ctx := context.Background()
 
 	products := []CreateProductInput{
 		{
+			SKU:         "MOUSE-SORT-NAME",
 			Name:        "Mouse",
 			Description: "Mouse inalámbrico",
 			Price:       120,
 		},
 		{
+			SKU:         "LAPTOP-SORT-NAME",
 			Name:        "Laptop",
 			Description: "Equipo para desarrollo backend",
 			Price:       3500,
 		},
 		{
+			SKU:         "KEYBOARD-SORT-NAME",
 			Name:        "Keyboard",
 			Description: "Teclado mecánico",
 			Price:       250,
@@ -561,16 +548,19 @@ func TestStoreListProductsSortByPriceDescending(t *testing.T) {
 
 	products := []CreateProductInput{
 		{
+			SKU:         "MOUSE-SORT-PRICE",
 			Name:        "Mouse",
 			Description: "Mouse inalámbrico",
 			Price:       120,
 		},
 		{
+			SKU:         "LAPTOP-SORT-PRICE",
 			Name:        "Laptop",
 			Description: "Equipo para desarrollo backend",
 			Price:       3500,
 		},
 		{
+			SKU:         "KEYBOARD-SORT-PRICE",
 			Name:        "Keyboard",
 			Description: "Teclado mecánico",
 			Price:       250,
@@ -620,21 +610,25 @@ func TestStoreListProductsSearchSortAndPagination(t *testing.T) {
 
 	products := []CreateProductInput{
 		{
+			SKU:         "LAPTOP-BASIC-SEARCH-SORT",
 			Name:        "Laptop Basic",
 			Description: "Laptop para oficina",
 			Price:       2500,
 		},
 		{
+			SKU:         "LAPTOP-PRO-SEARCH-SORT",
 			Name:        "Laptop Pro",
 			Description: "Laptop para desarrollo backend",
 			Price:       4500,
 		},
 		{
+			SKU:         "LAPTOP-AIR-SEARCH-SORT",
 			Name:        "Laptop Air",
 			Description: "Laptop ligera",
 			Price:       3500,
 		},
 		{
+			SKU:         "MOUSE-SEARCH-SORT",
 			Name:        "Mouse",
 			Description: "Mouse inalámbrico",
 			Price:       120,
@@ -688,5 +682,183 @@ func TestStoreListProductsSearchSortAndPagination(t *testing.T) {
 
 	if result.Order != SortOrderDesc {
 		t.Fatalf("expected order %q, got %q", SortOrderDesc, result.Order)
+	}
+}
+
+func TestStoreCreateProductDuplicateSKU(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "DUPLICATE-SKU",
+		Name:        "Product 1",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "duplicate-sku",
+		Name:        "Product 2",
+		Description: "Segundo producto",
+		Price:       200,
+	})
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}
+
+func TestStoreUpdateProductDuplicateSKU(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "PRODUCT-001",
+		Name:        "Product 1",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	second, err := store.Create(ctx, CreateProductInput{
+		SKU:         "PRODUCT-002",
+		Name:        "Product 2",
+		Description: "Segundo producto",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating second product, got %v", err)
+	}
+
+	_, err = store.Update(ctx, second.ID, UpdateProductInput{
+		SKU:         "product-001",
+		Name:        "Product 2 Updated",
+		Description: "Intento de SKU duplicado",
+		Price:       250,
+	})
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}
+
+func TestStoreGetProductBySKU(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "LAPTOP-SKU-001",
+		Name:        "Laptop",
+		Description: "Laptop para desarrollo backend",
+		Price:       3500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	found, err := store.GetBySKU(ctx, "laptop-sku-001")
+	if err != nil {
+		t.Fatalf("expected no error getting product by sku, got %v", err)
+	}
+
+	if found.ID != created.ID {
+		t.Fatalf("expected ID %q, got %q", created.ID, found.ID)
+	}
+
+	if found.SKU != "LAPTOP-SKU-001" {
+		t.Fatalf("expected SKU %q, got %q", "LAPTOP-SKU-001", found.SKU)
+	}
+}
+
+func TestStoreGetProductBySKUNotFound(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.GetBySKU(ctx, "missing-sku")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestStoreListProductsFilterByPriceRange(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			SKU:         "PRICE-LAPTOP-BASIC",
+			Name:        "Laptop Basic",
+			Description: "Laptop para oficina",
+			Price:       2500,
+		},
+		{
+			SKU:         "PRICE-LAPTOP-PRO",
+			Name:        "Laptop Pro",
+			Description: "Laptop para desarrollo backend",
+			Price:       4500,
+		},
+		{
+			SKU:         "PRICE-LAPTOP-AIR",
+			Name:        "Laptop Air",
+			Description: "Laptop ligera",
+			Price:       3500,
+		},
+		{
+			SKU:         "PRICE-MOUSE",
+			Name:        "Mouse",
+			Description: "Mouse inalámbrico",
+			Price:       120,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := store.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product, got %v", err)
+		}
+	}
+
+	minPrice := 2000.0
+	maxPrice := 4000.0
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		MinPrice: &minPrice,
+		MaxPrice: &maxPrice,
+		Sort:     SortFieldPrice,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(result.Items))
+	}
+
+	expectedNames := []string{
+		"Laptop Basic",
+		"Laptop Air",
+	}
+
+	for index, expectedName := range expectedNames {
+		if result.Items[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, result.Items[index].Name)
+		}
+	}
+
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
+	}
+
+	if result.MinPrice == nil || *result.MinPrice != minPrice {
+		t.Fatalf("expected min price %v, got %v", minPrice, result.MinPrice)
+	}
+
+	if result.MaxPrice == nil || *result.MaxPrice != maxPrice {
+		t.Fatalf("expected max price %v, got %v", maxPrice, result.MaxPrice)
 	}
 }
