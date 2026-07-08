@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -124,6 +125,10 @@ func (r *PostgresRepository) Create(ctx context.Context, input CreateProductInpu
 		&item.UpdatedAt,
 	)
 	if err != nil {
+		if isProductSKUUniqueViolation(err) {
+			return Product{}, ErrSKUAlreadyExists
+		}
+
 		return Product{}, fmt.Errorf("create product: %w", err)
 	}
 
@@ -172,6 +177,10 @@ func (r *PostgresRepository) Update(ctx context.Context, id string, input Update
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, ErrNotFound
+		}
+
+		if isProductSKUUniqueViolation(err) {
+			return Product{}, ErrSKUAlreadyExists
 		}
 
 		return Product{}, fmt.Errorf("update product: %w", err)
@@ -336,4 +345,14 @@ func postgresSortDirection(order string) string {
 	}
 
 	return "ASC"
+}
+
+func isProductSKUUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgErr.Code == "23505" &&
+		pgErr.ConstraintName == "products_sku_unique"
 }

@@ -739,3 +739,160 @@ func TestListProductsSearchAndSort(t *testing.T) {
 		t.Fatalf("expected order %q, got %q", product.SortOrderDesc, response.Meta.Order)
 	}
 }
+
+func TestCreateProductDuplicateSKUReturnsConflict(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	firstBody := []byte(`{
+		"sku": "DUPLICATE-SKU",
+		"name": "Producto 1",
+		"description": "Primer producto",
+		"price": 100
+	}`)
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(firstBody),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+
+	firstRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	if firstRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, firstRecorder.Code, firstRecorder.Body.String())
+	}
+
+	secondBody := []byte(`{
+		"sku": "duplicate-sku",
+		"name": "Producto 2",
+		"description": "Segundo producto",
+		"price": 200
+	}`)
+
+	secondRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(secondBody),
+	)
+	secondRequest.Header.Set("Content-Type", "application/json")
+	secondRequest.Header.Set(requestIDHeader, "duplicate-sku-create")
+
+	secondRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if secondRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusConflict, secondRecorder.Code, secondRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(secondRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeConflict {
+		t.Fatalf("expected error code %q, got %q", errorCodeConflict, response.Error.Code)
+	}
+
+	if response.Error.Message != "product sku already exists" {
+		t.Fatalf("expected message %q, got %q", "product sku already exists", response.Error.Message)
+	}
+
+	if response.Error.RequestID != "duplicate-sku-create" {
+		t.Fatalf("expected request id %q, got %q", "duplicate-sku-create", response.Error.RequestID)
+	}
+}
+
+func TestUpdateProductDuplicateSKUReturnsConflict(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	firstBody := []byte(`{
+		"sku": "PRODUCT-001",
+		"name": "Producto 1",
+		"description": "Primer producto",
+		"price": 100
+	}`)
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(firstBody),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	if firstRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, firstRecorder.Code, firstRecorder.Body.String())
+	}
+
+	secondBody := []byte(`{
+		"sku": "PRODUCT-002",
+		"name": "Producto 2",
+		"description": "Segundo producto",
+		"price": 200
+	}`)
+
+	secondRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(secondBody),
+	)
+	secondRequest.Header.Set("Content-Type", "application/json")
+
+	secondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if secondRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, secondRecorder.Code, secondRecorder.Body.String())
+	}
+
+	var secondProduct ProductResponse
+	if err := json.NewDecoder(secondRecorder.Body).Decode(&secondProduct); err != nil {
+		t.Fatalf("failed to decode second product: %v", err)
+	}
+
+	updateBody := []byte(`{
+		"sku": "PRODUCT-001",
+		"name": "Producto 2 actualizado",
+		"description": "Intento de SKU duplicado",
+		"price": 250
+	}`)
+
+	updateRequest := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/products/"+secondProduct.ID,
+		bytes.NewReader(updateBody),
+	)
+	updateRequest.Header.Set("Content-Type", "application/json")
+	updateRequest.Header.Set(requestIDHeader, "duplicate-sku-update")
+
+	updateRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(updateRecorder, updateRequest)
+
+	if updateRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusConflict, updateRecorder.Code, updateRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(updateRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeConflict {
+		t.Fatalf("expected error code %q, got %q", errorCodeConflict, response.Error.Code)
+	}
+
+	if response.Error.Message != "product sku already exists" {
+		t.Fatalf("expected message %q, got %q", "product sku already exists", response.Error.Message)
+	}
+
+	if response.Error.RequestID != "duplicate-sku-update" {
+		t.Fatalf("expected request id %q, got %q", "duplicate-sku-update", response.Error.RequestID)
+	}
+}

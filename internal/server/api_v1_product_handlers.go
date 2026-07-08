@@ -103,6 +103,17 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, product.ErrSKUAlreadyExists) {
+			writeError(
+				w,
+				r,
+				http.StatusConflict,
+				errorCodeConflict,
+				"product sku already exists",
+			)
+			return
+		}
+
 		h.logger.Error("error creating product", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
 		return
@@ -149,6 +160,17 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
+			return
+		}
+
+		if errors.Is(err, product.ErrSKUAlreadyExists) {
+			writeError(
+				w,
+				r,
+				http.StatusConflict,
+				errorCodeConflict,
+				"product sku already exists",
+			)
 			return
 		}
 

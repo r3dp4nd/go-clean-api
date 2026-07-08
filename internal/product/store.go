@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("product not found")
+var (
+	ErrNotFound         = errors.New("product not found")
+	ErrSKUAlreadyExists = errors.New("product sku already exists")
+)
 
 type Store struct {
 	mu       sync.RWMutex
@@ -128,6 +131,12 @@ func (s *Store) Create(ctx context.Context, input CreateProductInput) (Product, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for _, existingProduct := range s.products {
+		if strings.EqualFold(existingProduct.SKU, input.SKU) {
+			return Product{}, ErrSKUAlreadyExists
+		}
+	}
+
 	now := time.Now().UTC()
 	id := fmt.Sprintf("%d", s.nextID)
 	s.nextID++
@@ -158,6 +167,12 @@ func (s *Store) Update(ctx context.Context, id string, input UpdateProductInput)
 	item, ok := s.products[id]
 	if !ok {
 		return Product{}, ErrNotFound
+	}
+
+	for _, existingProduct := range s.products {
+		if existingProduct.ID != id && strings.EqualFold(existingProduct.SKU, input.SKU) {
+			return Product{}, ErrSKUAlreadyExists
+		}
 	}
 
 	item.SKU = input.SKU

@@ -14,6 +14,7 @@ const (
 	errorCodeInvalidRequest     = "invalid_request"
 	errorCodeValidation         = "validation_error"
 	errorCodeForbidden          = "forbidden"
+	errorCodeConflict           = "conflict"
 	errorCodeServiceUnavailable = "service_unavailable"
 	errorCodeInternal           = "internal_error"
 )
