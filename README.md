@@ -350,3 +350,13 @@ Carpeta principal:
 ```text
 db/migrations
 ```
+
+## Products con PostgreSQL
+
+El CRUD de Products usa PostgreSQL mediante `PostgresProductRepository`.
+
+Archivo principal:
+
+```text
+internal/product/postgres_repository.go
+```

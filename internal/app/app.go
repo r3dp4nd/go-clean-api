@@ -51,8 +51,8 @@ func (a *App) Run() error {
 
 	a.logger.Info("postgres connection established")
 
-	productStore := product.NewStore()
-	productService := product.NewService(productStore)
+	productRepository := product.NewPostgresRepository(postgresPool)
+	productService := product.NewService(productRepository)
 
 	httpServer := server.New(server.Options{
 		Addr:              a.config.HTTP.Addr,
