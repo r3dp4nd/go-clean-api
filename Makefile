@@ -8,19 +8,21 @@ HTTP_HOST?=
 HTTP_PORT?=8080
 HTTP_SHUTDOWN_TIMEOUT_SECONDS?=10
 LOG_LEVEL?=info
-LOG_FORMAT?=json
+LOG_FORMAT?=text
 
-.PHONY: help run build clean test fmt vet tidy
+.PHONY: help run build clean test test-v test-cover fmt vet tidy
 
 help:
 	@echo "Comandos disponibles:"
-	@echo "  make run     - Ejecuta la API en modo desarrollo"
-	@echo "  make build   - Compila la aplicación"
-	@echo "  make clean   - Elimina archivos generados"
-	@echo "  make test    - Ejecuta los tests"
-	@echo "  make fmt     - Formatea el código Go"
-	@echo "  make vet     - Analiza problemas comunes en el código"
-	@echo "  make tidy    - Ordena dependencias del módulo"
+	@echo "  make run        - Ejecuta la API en modo desarrollo"
+	@echo "  make build      - Compila la aplicación"
+	@echo "  make clean      - Elimina archivos generados"
+	@echo "  make test       - Ejecuta los tests"
+	@echo "  make test-v     - Ejecuta los tests en modo verbose"
+	@echo "  make test-cover - Ejecuta tests con cobertura"
+	@echo "  make fmt        - Formatea el código Go"
+	@echo "  make vet        - Analiza problemas comunes en el código"
+	@echo "  make tidy       - Ordena dependencias del módulo"
 
 run:
 	APP_NAME=$(APP_NAME) \
@@ -43,6 +45,12 @@ clean:
 
 test:
 	go test ./...
+
+test-v:
+	go test -v ./...
+
+test-cover:
+	go test -cover ./...
 
 fmt:
 	go fmt ./...

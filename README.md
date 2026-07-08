@@ -155,3 +155,13 @@ Por ahora usa almacenamiento en memoria.
 ```bash
 curl -i http://localhost:8080/api/v1/products
 ```
+
+## Testing
+
+La API usa `net/http/httptest` para probar handlers HTTP sin levantar un servidor real.
+
+### Ejecutar tests
+
+```bash
+make test
+```
