@@ -143,3 +143,15 @@ La API pública versionada comienza bajo el prefijo:
 ```text
 /api/v1
 ```
+
+## Products API
+
+Primer módulo de negocio de la API.
+
+Por ahora usa almacenamiento en memoria.
+
+### Listar productos
+
+```bash
+curl -i http://localhost:8080/api/v1/products
+```

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/r3dp4nd/go-clean-api/internal/config"
+	"github.com/r3dp4nd/go-clean-api/internal/product"
 	"github.com/r3dp4nd/go-clean-api/internal/server"
 )
 
@@ -32,6 +33,8 @@ func (a *App) Run() error {
 		"shutdown_timeout_seconds", a.config.HTTP.ShutdownTimeoutSeconds,
 	)
 
+	productStore := product.NewStore()
+
 	httpServer := server.New(server.Options{
 		Addr:              a.config.HTTP.Addr,
 		ReadHeaderTimeout: a.config.HTTP.ReadHeaderTimeout,
@@ -39,6 +42,7 @@ func (a *App) Run() error {
 		WriteTimeout:      a.config.HTTP.WriteTimeout,
 		IdleTimeout:       a.config.HTTP.IdleTimeout,
 		Logger:            a.logger,
+		ProductStore:      productStore,
 	})
 
 	serverErrors := make(chan error, 1)

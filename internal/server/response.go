@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 )
@@ -9,6 +11,7 @@ import (
 const (
 	errorCodeNotFound         = "not_found"
 	errorCodeMethodNotAllowed = "method_not_allowed"
+	errorCodeInvalidRequest   = "invalid_request"
 	errorCodeInternal         = "internal_error"
 )
 
@@ -21,6 +24,21 @@ func writeJSON(w http.ResponseWriter, statusCode int, data any) {
 	}
 }
 
+func readJSON(r *http.Request, dst any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errors.New("request body must contain a single JSON object")
+	}
+
+	return nil
+}
+
 func writeError(w http.ResponseWriter, r *http.Request, statusCode int, code string, message string) {
 	response := ErrorResponse{
 		Error: APIError{
@@ -31,6 +49,16 @@ func writeError(w http.ResponseWriter, r *http.Request, statusCode int, code str
 	}
 
 	writeJSON(w, statusCode, response)
+}
+
+func writeBadRequest(w http.ResponseWriter, r *http.Request, message string) {
+	writeError(
+		w,
+		r,
+		http.StatusBadRequest,
+		errorCodeInvalidRequest,
+		message,
+	)
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter, r *http.Request, allowedMethod string) {

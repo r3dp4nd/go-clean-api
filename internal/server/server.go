@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
 type Options struct {
@@ -15,6 +17,7 @@ type Options struct {
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
 	Logger            *slog.Logger
+	ProductStore      *product.Store
 }
 
 type Server struct {
@@ -25,7 +28,7 @@ type Server struct {
 func New(options Options) *Server {
 	mux := http.NewServeMux()
 
-	handlers := NewHandler(options.Logger)
+	handlers := NewHandler(options.Logger, options.ProductStore)
 
 	registerRoutes(mux, handlers)
 

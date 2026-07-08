@@ -3,15 +3,19 @@ package server
 import (
 	"log/slog"
 	"net/http"
+
+	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
 type Handler struct {
-	logger *slog.Logger
+	logger       *slog.Logger
+	productStore *product.Store
 }
 
-func NewHandler(logger *slog.Logger) *Handler {
+func NewHandler(logger *slog.Logger, productStore *product.Store) *Handler {
 	return &Handler{
-		logger: logger,
+		logger:       logger,
+		productStore: productStore,
 	}
 }
 
