@@ -32,6 +32,8 @@ type ListProductsInput struct {
 	Search   string
 	Sort     string
 	Order    string
+	MinPrice *float64
+	MaxPrice *float64
 }
 
 type ListProductsResult struct {
@@ -43,4 +45,6 @@ type ListProductsResult struct {
 	Search     string
 	Sort       string
 	Order      string
+	MinPrice   *float64
+	MaxPrice   *float64
 }

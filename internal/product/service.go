@@ -157,6 +157,29 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 		})
 	}
 
+	if input.MinPrice != nil && *input.MinPrice < 0 {
+		fields = append(fields, FieldViolation{
+			Field:   "min_price",
+			Message: "min_price must be greater than or equal to zero",
+		})
+	}
+
+	if input.MaxPrice != nil && *input.MaxPrice < 0 {
+		fields = append(fields, FieldViolation{
+			Field:   "max_price",
+			Message: "max_price must be greater than or equal to zero",
+		})
+	}
+
+	if input.MinPrice != nil &&
+		input.MaxPrice != nil &&
+		*input.MinPrice > *input.MaxPrice {
+		fields = append(fields, FieldViolation{
+			Field:   "price_range",
+			Message: "min_price must be less than or equal to max_price",
+		})
+	}
+
 	if len(input.Search) > MaxSearchLength {
 		fields = append(fields, FieldViolation{
 			Field:   "search",

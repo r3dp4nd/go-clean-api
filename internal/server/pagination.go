@@ -60,6 +60,49 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 		}
 	}
 
+	if rawMinPrice := strings.TrimSpace(query.Get("min_price")); rawMinPrice != "" {
+		minPrice, err := strconv.ParseFloat(rawMinPrice, 64)
+		if err != nil {
+			fields = append(fields, FieldError{
+				Field:   "min_price",
+				Message: "min_price must be a valid number",
+			})
+		} else if minPrice < 0 {
+			fields = append(fields, FieldError{
+				Field:   "min_price",
+				Message: "min_price must be greater than or equal to zero",
+			})
+		} else {
+			input.MinPrice = &minPrice
+		}
+	}
+
+	if rawMaxPrice := strings.TrimSpace(query.Get("max_price")); rawMaxPrice != "" {
+		maxPrice, err := strconv.ParseFloat(rawMaxPrice, 64)
+		if err != nil {
+			fields = append(fields, FieldError{
+				Field:   "max_price",
+				Message: "max_price must be a valid number",
+			})
+		} else if maxPrice < 0 {
+			fields = append(fields, FieldError{
+				Field:   "max_price",
+				Message: "max_price must be greater than or equal to zero",
+			})
+		} else {
+			input.MaxPrice = &maxPrice
+		}
+	}
+
+	if input.MinPrice != nil &&
+		input.MaxPrice != nil &&
+		*input.MinPrice > *input.MaxPrice {
+		fields = append(fields, FieldError{
+			Field:   "price_range",
+			Message: "min_price must be less than or equal to max_price",
+		})
+	}
+
 	if rawSort := strings.ToLower(strings.TrimSpace(query.Get("sort"))); rawSort != "" {
 		if !product.IsSupportedSortField(rawSort) {
 			fields = append(fields, FieldError{

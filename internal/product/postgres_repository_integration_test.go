@@ -281,3 +281,76 @@ func truncateProducts(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("failed to truncate products table: %v", err)
 	}
 }
+
+func TestIntegrationPostgresProductRepositoryListByPriceRange(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			SKU:         "PRICE-LAPTOP-BASIC",
+			Name:        "Laptop Basic",
+			Description: "Laptop para oficina",
+			Price:       2500,
+		},
+		{
+			SKU:         "PRICE-LAPTOP-PRO",
+			Name:        "Laptop Pro",
+			Description: "Laptop para desarrollo backend",
+			Price:       4500,
+		},
+		{
+			SKU:         "PRICE-LAPTOP-AIR",
+			Name:        "Laptop Air",
+			Description: "Laptop ligera",
+			Price:       3500,
+		},
+		{
+			SKU:         "PRICE-MOUSE",
+			Name:        "Mouse",
+			Description: "Mouse inalámbrico",
+			Price:       120,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := repository.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product %q, got %v", input.Name, err)
+		}
+	}
+
+	minPrice := 2000.0
+	maxPrice := 4000.0
+
+	result, err := repository.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		MinPrice: &minPrice,
+		MaxPrice: &maxPrice,
+		Sort:     SortFieldPrice,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing by price range, got %v", err)
+	}
+
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(result.Items))
+	}
+
+	expectedNames := []string{
+		"Laptop Basic",
+		"Laptop Air",
+	}
+
+	for index, expectedName := range expectedNames {
+		if result.Items[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, result.Items[index].Name)
+		}
+	}
+}

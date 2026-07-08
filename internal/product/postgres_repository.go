@@ -29,7 +29,7 @@ func (r *PostgresRepository) List(ctx context.Context, input ListProductsInput) 
 		return ListProductsResult{}, err
 	}
 
-	total, err := r.countProducts(ctx, normalizedInput.Search)
+	total, err := r.countProducts(ctx, normalizedInput)
 	if err != nil {
 		return ListProductsResult{}, err
 	}
@@ -48,6 +48,8 @@ func (r *PostgresRepository) List(ctx context.Context, input ListProductsInput) 
 		Search:     normalizedInput.Search,
 		Sort:       normalizedInput.Sort,
 		Order:      normalizedInput.Order,
+		MinPrice:   normalizedInput.MinPrice,
+		MaxPrice:   normalizedInput.MaxPrice,
 	}, nil
 }
 
@@ -243,25 +245,15 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *PostgresRepository) countProducts(ctx context.Context, search string) (int, error) {
-	search = strings.TrimSpace(search)
-
+func (r *PostgresRepository) countProducts(ctx context.Context, input ListProductsInput) (int, error) {
 	query := `
 		SELECT COUNT(*)
 		FROM products
 	`
 
-	args := make([]any, 0, 1)
+	whereClause, args := buildProductWhereClause(input)
 
-	if search != "" {
-		query += `
-			WHERE sku ILIKE '%' || $1 || '%'
-			   OR name ILIKE '%' || $1 || '%'
-			   OR description ILIKE '%' || $1 || '%'
-		`
-
-		args = append(args, search)
-	}
+	query += whereClause
 
 	var total int
 
@@ -277,16 +269,7 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 
 	args := make([]any, 0, 3)
 
-	whereClause := ""
-	if input.Search != "" {
-		whereClause = `
-			WHERE sku ILIKE '%' || $1 || '%'
-			   OR name ILIKE '%' || $1 || '%'
-			   OR description ILIKE '%' || $1 || '%'
-		`
-
-		args = append(args, input.Search)
-	}
+	whereClause, args := buildProductWhereClause(input)
 
 	limitPosition := len(args) + 1
 	offsetPosition := len(args) + 2
@@ -354,6 +337,54 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 	}
 
 	return items, nil
+}
+
+func buildProductWhereClause(input ListProductsInput) (string, []any) {
+	conditions := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+
+	if input.Search != "" {
+		args = append(args, input.Search)
+		position := len(args)
+
+		conditions = append(
+			conditions,
+			fmt.Sprintf(
+				`(sku ILIKE '%%' || $%d || '%%'
+				   OR name ILIKE '%%' || $%d || '%%'
+				   OR description ILIKE '%%' || $%d || '%%')`,
+				position,
+				position,
+				position,
+			),
+		)
+	}
+
+	if input.MinPrice != nil {
+		args = append(args, *input.MinPrice)
+		position := len(args)
+
+		conditions = append(
+			conditions,
+			fmt.Sprintf("price >= $%d", position),
+		)
+	}
+
+	if input.MaxPrice != nil {
+		args = append(args, *input.MaxPrice)
+		position := len(args)
+
+		conditions = append(
+			conditions,
+			fmt.Sprintf("price <= $%d", position),
+		)
+	}
+
+	if len(conditions) == 0 {
+		return "", args
+	}
+
+	return "\nWHERE " + strings.Join(conditions, "\n  AND "), args
 }
 
 func postgresSortExpression(sortField string) string {

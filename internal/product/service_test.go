@@ -734,3 +734,108 @@ func TestServiceGetProductBySKUNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestServiceListProductsWithPriceRange(t *testing.T) {
+	minPrice := 1000.0
+	maxPrice := 4000.0
+
+	expectedResult := ListProductsResult{
+		Items: []Product{
+			{
+				ID:    "1",
+				SKU:   "LAPTOP-001",
+				Name:  "Laptop",
+				Price: 3500,
+			},
+		},
+		Total:      1,
+		Page:       1,
+		PageSize:   10,
+		TotalPages: 1,
+		Sort:       SortFieldPrice,
+		Order:      SortOrderDesc,
+		MinPrice:   &minPrice,
+		MaxPrice:   &maxPrice,
+	}
+
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			if input.MinPrice == nil || *input.MinPrice != minPrice {
+				t.Fatalf("expected min price %v, got %v", minPrice, input.MinPrice)
+			}
+
+			if input.MaxPrice == nil || *input.MaxPrice != maxPrice {
+				t.Fatalf("expected max price %v, got %v", maxPrice, input.MaxPrice)
+			}
+
+			return expectedResult, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	result, err := service.List(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldPrice,
+		Order:    SortOrderDesc,
+		MinPrice: &minPrice,
+		MaxPrice: &maxPrice,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.listCalls != 1 {
+		t.Fatalf("expected List to be called once, got %d", repository.listCalls)
+	}
+
+	if result.MinPrice == nil || *result.MinPrice != minPrice {
+		t.Fatalf("expected result min price %v, got %v", minPrice, result.MinPrice)
+	}
+
+	if result.MaxPrice == nil || *result.MaxPrice != maxPrice {
+		t.Fatalf("expected result max price %v, got %v", maxPrice, result.MaxPrice)
+	}
+}
+
+func TestServiceListProductsInvalidPriceRangeDoesNotCallRepository(t *testing.T) {
+	minPrice := 5000.0
+	maxPrice := 1000.0
+
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			t.Fatal("repository List should not be called when price range validation fails")
+			return ListProductsResult{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.List(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		MinPrice: &minPrice,
+		MaxPrice: &maxPrice,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.listCalls != 0 {
+		t.Fatalf("expected List not to be called, got %d calls", repository.listCalls)
+	}
+
+	if len(validationErr.Fields) != 1 {
+		t.Fatalf("expected 1 validation field, got %d", len(validationErr.Fields))
+	}
+
+	if validationErr.Fields[0].Field != "price_range" {
+		t.Fatalf("expected field %q, got %q", "price_range", validationErr.Fields[0].Field)
+	}
+}

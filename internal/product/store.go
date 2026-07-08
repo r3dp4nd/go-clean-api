@@ -64,7 +64,7 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	products := make([]Product, 0, len(s.products))
 
 	for _, item := range s.products {
-		if normalizedSearch == "" || productMatchesSearch(item, normalizedSearch) {
+		if productMatchesFilters(item, normalizedSearch, input.MinPrice, input.MaxPrice) {
 			products = append(products, item)
 		}
 	}
@@ -77,9 +77,12 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	totalPages := calculateTotalPages(total, input.PageSize)
 
 	offset := (input.Page - 1) * input.PageSize
+
+	end := offset + input.PageSize
+
 	if offset >= total {
 		return ListProductsResult{
-			Items:      []Product{},
+			Items:      products[offset:end],
 			Total:      total,
 			Page:       input.Page,
 			PageSize:   input.PageSize,
@@ -87,10 +90,11 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 			Search:     input.Search,
 			Sort:       input.Sort,
 			Order:      input.Order,
+			MinPrice:   input.MinPrice,
+			MaxPrice:   input.MaxPrice,
 		}, nil
 	}
 
-	end := offset + input.PageSize
 	if end > total {
 		end = total
 	}
@@ -104,6 +108,8 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 		Search:     input.Search,
 		Sort:       input.Sort,
 		Order:      input.Order,
+		MinPrice:   input.MinPrice,
+		MaxPrice:   input.MaxPrice,
 	}, nil
 }
 
@@ -329,4 +335,25 @@ func compareTime(left time.Time, right time.Time) int {
 	default:
 		return 0
 	}
+}
+
+func productMatchesFilters(
+	item Product,
+	search string,
+	minPrice *float64,
+	maxPrice *float64,
+) bool {
+	if search != "" && !productMatchesSearch(item, search) {
+		return false
+	}
+
+	if minPrice != nil && item.Price < *minPrice {
+		return false
+	}
+
+	if maxPrice != nil && item.Price > *maxPrice {
+		return false
+	}
+
+	return true
 }

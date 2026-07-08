@@ -1009,3 +1009,150 @@ func TestGetProductBySKUMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
 	}
 }
+
+func TestListProductsFilterByPriceRange(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	products := []string{
+		`{"sku":"LAPTOP-BASIC-PRICE","name":"Laptop Basic","description":"Laptop para oficina","price":2500}`,
+		`{"sku":"LAPTOP-PRO-PRICE","name":"Laptop Pro","description":"Laptop para desarrollo backend","price":4500}`,
+		`{"sku":"LAPTOP-AIR-PRICE","name":"Laptop Air","description":"Laptop ligera","price":3500}`,
+		`{"sku":"MOUSE-PRICE","name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+	}
+
+	for _, body := range products {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, responseRecorder.Code, responseRecorder.Body.String())
+		}
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?min_price=2000&max_price=4000&sort=price&order=asc",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "price-range-products")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(response.Data))
+	}
+
+	expectedNames := []string{
+		"Laptop Basic",
+		"Laptop Air",
+	}
+
+	for index, expectedName := range expectedNames {
+		if response.Data[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, response.Data[index].Name)
+		}
+	}
+
+	if response.Meta.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, response.Meta.Total)
+	}
+
+	if response.Meta.MinPrice == nil || *response.Meta.MinPrice != 2000 {
+		t.Fatalf("expected min_price %v, got %v", 2000.0, response.Meta.MinPrice)
+	}
+
+	if response.Meta.MaxPrice == nil || *response.Meta.MaxPrice != 4000 {
+		t.Fatalf("expected max_price %v, got %v", 4000.0, response.Meta.MaxPrice)
+	}
+}
+
+func TestListProductsInvalidPriceRange(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?min_price=5000&max_price=1000",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "invalid-price-range")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "price_range" {
+		t.Fatalf("expected field %q, got %q", "price_range", response.Error.Fields[0].Field)
+	}
+
+	if response.Error.RequestID != "invalid-price-range" {
+		t.Fatalf("expected request id %q, got %q", "invalid-price-range", response.Error.RequestID)
+	}
+}
+
+func TestListProductsInvalidMinPrice(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?min_price=abc",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "invalid-min-price")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "min_price" {
+		t.Fatalf("expected field %q, got %q", "min_price", response.Error.Fields[0].Field)
+	}
+}

@@ -18,13 +18,15 @@ type ProductListResponse struct {
 }
 
 type PaginationMeta struct {
-	Page       int    `json:"page"`
-	PageSize   int    `json:"page_size"`
-	Total      int    `json:"total"`
-	TotalPages int    `json:"total_pages"`
-	Search     string `json:"search,omitempty"`
-	Sort       string `json:"sort"`
-	Order      string `json:"order"`
+	Page       int      `json:"page"`
+	PageSize   int      `json:"page_size"`
+	Total      int      `json:"total"`
+	TotalPages int      `json:"total_pages"`
+	Search     string   `json:"search,omitempty"`
+	Sort       string   `json:"sort"`
+	Order      string   `json:"order"`
+	MinPrice   *float64 `json:"min_price,omitempty"`
+	MaxPrice   *float64 `json:"max_price,omitempty"`
 }
 
 type CreateProductRequest struct {

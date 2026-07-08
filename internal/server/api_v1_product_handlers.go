@@ -91,6 +91,8 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 			Search:     result.Search,
 			Sort:       result.Sort,
 			Order:      result.Order,
+			MinPrice:   result.MinPrice,
+			MaxPrice:   result.MaxPrice,
 		},
 	}
 
