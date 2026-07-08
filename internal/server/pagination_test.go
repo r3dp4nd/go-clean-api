@@ -29,10 +29,22 @@ func TestReadProductListQueryDefaults(t *testing.T) {
 	if input.Search != "" {
 		t.Fatalf("expected empty search, got %q", input.Search)
 	}
+
+	if input.Sort != product.DefaultSort {
+		t.Fatalf("expected sort %q, got %q", product.DefaultSort, input.Sort)
+	}
+
+	if input.Order != product.DefaultOrder {
+		t.Fatalf("expected order %q, got %q", product.DefaultOrder, input.Order)
+	}
 }
 
 func TestReadProductListQueryValidValues(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?page=2&page_size=25&search=laptop", nil)
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?page=2&page_size=25&search=laptop&sort=price&order=desc",
+		nil,
+	)
 
 	input, fields := readProductListQuery(request)
 
@@ -51,6 +63,14 @@ func TestReadProductListQueryValidValues(t *testing.T) {
 	if input.Search != "laptop" {
 		t.Fatalf("expected search %q, got %q", "laptop", input.Search)
 	}
+
+	if input.Sort != product.SortFieldPrice {
+		t.Fatalf("expected sort %q, got %q", product.SortFieldPrice, input.Sort)
+	}
+
+	if input.Order != product.SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", product.SortOrderDesc, input.Order)
+	}
 }
 
 func TestReadProductListQueryTrimsSearch(t *testing.T) {
@@ -64,6 +84,24 @@ func TestReadProductListQueryTrimsSearch(t *testing.T) {
 
 	if input.Search != "laptop" {
 		t.Fatalf("expected trimmed search %q, got %q", "laptop", input.Search)
+	}
+}
+
+func TestReadProductListQueryNormalizesSortAndOrder(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?sort=NAME&order=DESC", nil)
+
+	input, fields := readProductListQuery(request)
+
+	if len(fields) != 0 {
+		t.Fatalf("expected no validation fields, got %d", len(fields))
+	}
+
+	if input.Sort != product.SortFieldName {
+		t.Fatalf("expected sort %q, got %q", product.SortFieldName, input.Sort)
+	}
+
+	if input.Order != product.SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", product.SortOrderDesc, input.Order)
 	}
 }
 
@@ -104,5 +142,34 @@ func TestReadProductListQuerySearchTooLarge(t *testing.T) {
 
 	if fields[0].Field != "search" {
 		t.Fatalf("expected field %q, got %q", "search", fields[0].Field)
+	}
+}
+
+func TestReadProductListQueryInvalidSortAndOrder(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?sort=unknown&order=random", nil)
+
+	_, fields := readProductListQuery(request)
+
+	if len(fields) != 2 {
+		t.Fatalf("expected 2 validation fields, got %d", len(fields))
+	}
+
+	expectedFields := map[string]bool{
+		"sort":  false,
+		"order": false,
+	}
+
+	for _, field := range fields {
+		if _, ok := expectedFields[field.Field]; !ok {
+			t.Fatalf("unexpected field %q", field.Field)
+		}
+
+		expectedFields[field.Field] = true
+	}
+
+	for field, found := range expectedFields {
+		if !found {
+			t.Fatalf("expected validation error for field %q", field)
+		}
 	}
 }

@@ -22,6 +22,8 @@ type PaginationMeta struct {
 	Total      int    `json:"total"`
 	TotalPages int    `json:"total_pages"`
 	Search     string `json:"search,omitempty"`
+	Sort       string `json:"sort"`
+	Order      string `json:"order"`
 }
 
 type CreateProductRequest struct {

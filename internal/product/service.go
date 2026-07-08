@@ -11,6 +11,18 @@ const (
 	MaxPageSize     = 100
 	MaxSearchLength = 120
 
+	DefaultSort  = SortFieldID
+	DefaultOrder = SortOrderAsc
+
+	SortFieldID        = "id"
+	SortFieldName      = "name"
+	SortFieldPrice     = "price"
+	SortFieldCreatedAt = "created_at"
+	SortFieldUpdatedAt = "updated_at"
+
+	SortOrderAsc  = "asc"
+	SortOrderDesc = "desc"
+
 	maxProductNameLength        = 120
 	maxProductDescriptionLength = 500
 )
@@ -101,6 +113,16 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 	}
 
 	input.Search = strings.TrimSpace(input.Search)
+	input.Sort = strings.ToLower(strings.TrimSpace(input.Sort))
+	input.Order = strings.ToLower(strings.TrimSpace(input.Order))
+
+	if input.Sort == "" {
+		input.Sort = DefaultSort
+	}
+
+	if input.Order == "" {
+		input.Order = DefaultOrder
+	}
 
 	var fields []FieldViolation
 
@@ -132,6 +154,20 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 		})
 	}
 
+	if !IsSupportedSortField(input.Sort) {
+		fields = append(fields, FieldViolation{
+			Field:   "sort",
+			Message: "sort must be one of: id, name, price, created_at, updated_at",
+		})
+	}
+
+	if !IsSupportedSortOrder(input.Order) {
+		fields = append(fields, FieldViolation{
+			Field:   "order",
+			Message: "order must be one of: asc, desc",
+		})
+	}
+
 	if len(fields) > 0 {
 		return ListProductsInput{}, ValidationError{
 			Fields: fields,
@@ -139,6 +175,28 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 	}
 
 	return input, nil
+}
+
+func IsSupportedSortField(value string) bool {
+	switch value {
+	case SortFieldID,
+		SortFieldName,
+		SortFieldPrice,
+		SortFieldCreatedAt,
+		SortFieldUpdatedAt:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsSupportedSortOrder(value string) bool {
+	switch value {
+	case SortOrderAsc, SortOrderDesc:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateProductInput(name string, description string, price float64) error {

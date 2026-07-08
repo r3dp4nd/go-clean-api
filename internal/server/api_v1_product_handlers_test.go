@@ -83,6 +83,14 @@ func TestProductsCRUD(t *testing.T) {
 		t.Fatalf("expected page size %d, got %d", 10, listResponse.Meta.PageSize)
 	}
 
+	if listResponse.Meta.Sort != product.DefaultSort {
+		t.Fatalf("expected sort %q, got %q", product.DefaultSort, listResponse.Meta.Sort)
+	}
+
+	if listResponse.Meta.Order != product.DefaultOrder {
+		t.Fatalf("expected order %q, got %q", product.DefaultOrder, listResponse.Meta.Order)
+	}
+
 	getRequest := httptest.NewRequest(http.MethodGet, "/api/v1/products/"+createdProduct.ID, nil)
 	getRecorder := httptest.NewRecorder()
 
@@ -544,5 +552,180 @@ func TestListProductsInvalidSearch(t *testing.T) {
 
 	if response.Error.Fields[0].Field != "search" {
 		t.Fatalf("expected field %q, got %q", "search", response.Error.Fields[0].Field)
+	}
+}
+
+func TestListProductsSortByPriceDescending(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	products := []string{
+		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+		`{"name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
+		`{"name":"Keyboard","description":"Teclado mecánico","price":250}`,
+	}
+
+	for _, body := range products {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, responseRecorder.Code)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?sort=price&order=desc", nil)
+	request.Header.Set(requestIDHeader, "sort-products")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 3 {
+		t.Fatalf("expected 3 products, got %d", len(response.Data))
+	}
+
+	expectedNames := []string{"Laptop", "Keyboard", "Mouse"}
+
+	for index, expectedName := range expectedNames {
+		if response.Data[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, response.Data[index].Name)
+		}
+	}
+
+	if response.Meta.Sort != product.SortFieldPrice {
+		t.Fatalf("expected sort %q, got %q", product.SortFieldPrice, response.Meta.Sort)
+	}
+
+	if response.Meta.Order != product.SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", product.SortOrderDesc, response.Meta.Order)
+	}
+}
+
+func TestListProductsInvalidSortAndOrder(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?sort=unknown&order=random", nil)
+	request.Header.Set(requestIDHeader, "invalid-sort-order")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d", http.StatusUnprocessableEntity, responseRecorder.Code)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if response.Error.RequestID != "invalid-sort-order" {
+		t.Fatalf("expected request id %q, got %q", "invalid-sort-order", response.Error.RequestID)
+	}
+
+	if len(response.Error.Fields) != 2 {
+		t.Fatalf("expected 2 field errors, got %d", len(response.Error.Fields))
+	}
+}
+
+func TestListProductsSearchAndSort(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	products := []string{
+		`{"name":"Laptop Basic","description":"Laptop para oficina","price":2500}`,
+		`{"name":"Laptop Pro","description":"Laptop para desarrollo backend","price":4500}`,
+		`{"name":"Laptop Air","description":"Laptop ligera","price":3500}`,
+		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+	}
+
+	for _, body := range products {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, responseRecorder.Code)
+		}
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?search=laptop&sort=price&order=desc&page=1&page_size=2",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "search-sort-products")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(response.Data))
+	}
+
+	expectedNames := []string{"Laptop Pro", "Laptop Air"}
+
+	for index, expectedName := range expectedNames {
+		if response.Data[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, response.Data[index].Name)
+		}
+	}
+
+	if response.Meta.Total != 3 {
+		t.Fatalf("expected total %d, got %d", 3, response.Meta.Total)
+	}
+
+	if response.Meta.TotalPages != 2 {
+		t.Fatalf("expected total pages %d, got %d", 2, response.Meta.TotalPages)
+	}
+
+	if response.Meta.Search != "laptop" {
+		t.Fatalf("expected search %q, got %q", "laptop", response.Meta.Search)
+	}
+
+	if response.Meta.Sort != product.SortFieldPrice {
+		t.Fatalf("expected sort %q, got %q", product.SortFieldPrice, response.Meta.Sort)
+	}
+
+	if response.Meta.Order != product.SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", product.SortOrderDesc, response.Meta.Order)
 	}
 }

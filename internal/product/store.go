@@ -42,6 +42,17 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	}
 
 	input.Search = strings.TrimSpace(input.Search)
+	input.Sort = strings.ToLower(strings.TrimSpace(input.Sort))
+	input.Order = strings.ToLower(strings.TrimSpace(input.Order))
+
+	if input.Sort == "" {
+		input.Sort = DefaultSort
+	}
+
+	if input.Order == "" {
+		input.Order = DefaultOrder
+	}
+
 	normalizedSearch := strings.ToLower(input.Search)
 
 	s.mu.RLock()
@@ -56,7 +67,7 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	}
 
 	sort.Slice(products, func(i, j int) bool {
-		return productIDLess(products[i].ID, products[j].ID)
+		return productLess(products[i], products[j], input.Sort, input.Order)
 	})
 
 	total := len(products)
@@ -71,6 +82,8 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 			PageSize:   input.PageSize,
 			TotalPages: totalPages,
 			Search:     input.Search,
+			Sort:       input.Sort,
+			Order:      input.Order,
 		}, nil
 	}
 
@@ -86,6 +99,8 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 		PageSize:   input.PageSize,
 		TotalPages: totalPages,
 		Search:     input.Search,
+		Sort:       input.Sort,
+		Order:      input.Order,
 	}, nil
 }
 
@@ -180,14 +195,25 @@ func calculateTotalPages(total int, pageSize int) int {
 }
 
 func productIDLess(left string, right string) bool {
+	return compareProductID(left, right) < 0
+}
+
+func compareProductID(left string, right string) int {
 	leftID, leftErr := strconv.ParseInt(left, 10, 64)
 	rightID, rightErr := strconv.ParseInt(right, 10, 64)
 
 	if leftErr == nil && rightErr == nil {
-		return leftID < rightID
+		switch {
+		case leftID < rightID:
+			return -1
+		case leftID > rightID:
+			return 1
+		default:
+			return 0
+		}
 	}
 
-	return left < right
+	return strings.Compare(left, right)
 }
 
 func productMatchesSearch(item Product, search string) bool {
@@ -196,4 +222,69 @@ func productMatchesSearch(item Product, search string) bool {
 
 	return strings.Contains(name, search) ||
 		strings.Contains(description, search)
+}
+
+func productLess(left Product, right Product, sortField string, order string) bool {
+	comparison := compareProducts(left, right, sortField)
+
+	if order == SortOrderDesc {
+		return comparison > 0
+	}
+
+	return comparison < 0
+}
+
+func compareProducts(left Product, right Product, sortField string) int {
+	var comparison int
+
+	switch sortField {
+	case SortFieldName:
+		comparison = strings.Compare(
+			strings.ToLower(left.Name),
+			strings.ToLower(right.Name),
+		)
+
+	case SortFieldPrice:
+		comparison = compareFloat64(left.Price, right.Price)
+
+	case SortFieldCreatedAt:
+		comparison = compareTime(left.CreatedAt, right.CreatedAt)
+
+	case SortFieldUpdatedAt:
+		comparison = compareTime(left.UpdatedAt, right.UpdatedAt)
+
+	case SortFieldID:
+		fallthrough
+
+	default:
+		comparison = compareProductID(left.ID, right.ID)
+	}
+
+	if comparison != 0 {
+		return comparison
+	}
+
+	return compareProductID(left.ID, right.ID)
+}
+
+func compareFloat64(left float64, right float64) int {
+	switch {
+	case left < right:
+		return -1
+	case left > right:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func compareTime(left time.Time, right time.Time) int {
+	switch {
+	case left.Before(right):
+		return -1
+	case left.After(right):
+		return 1
+	default:
+		return 0
+	}
 }

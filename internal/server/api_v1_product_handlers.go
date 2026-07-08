@@ -71,6 +71,8 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 			Total:      result.Total,
 			TotalPages: result.TotalPages,
 			Search:     result.Search,
+			Sort:       result.Sort,
+			Order:      result.Order,
 		},
 	}
 

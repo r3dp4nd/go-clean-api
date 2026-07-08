@@ -27,6 +27,8 @@ type ListProductsInput struct {
 	Page     int
 	PageSize int
 	Search   string
+	Sort     string
+	Order    string
 }
 
 type ListProductsResult struct {
@@ -36,4 +38,6 @@ type ListProductsResult struct {
 	PageSize   int
 	TotalPages int
 	Search     string
+	Sort       string
+	Order      string
 }

@@ -276,3 +276,17 @@ El endpoint `GET /api/v1/products` soporta búsqueda básica por `search`.
 
 ```bash
 curl -i "http://localhost:8080/api/v1/products?search=laptop&page=1&page_size=10"
+```
+
+## Ordenamiento de Products
+
+El endpoint `GET /api/v1/products` soporta ordenamiento usando `sort` y `order`.
+
+### Campos permitidos
+
+```text
+id
+name
+price
+created_at
+updated_at

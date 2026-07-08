@@ -14,6 +14,8 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 	input := product.ListProductsInput{
 		Page:     product.DefaultPage,
 		PageSize: product.DefaultPageSize,
+		Sort:     product.DefaultSort,
+		Order:    product.DefaultOrder,
 	}
 
 	var fields []FieldError
@@ -55,6 +57,28 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 			})
 		} else {
 			input.Search = rawSearch
+		}
+	}
+
+	if rawSort := strings.ToLower(strings.TrimSpace(query.Get("sort"))); rawSort != "" {
+		if !product.IsSupportedSortField(rawSort) {
+			fields = append(fields, FieldError{
+				Field:   "sort",
+				Message: "sort must be one of: id, name, price, created_at, updated_at",
+			})
+		} else {
+			input.Sort = rawSort
+		}
+	}
+
+	if rawOrder := strings.ToLower(strings.TrimSpace(query.Get("order"))); rawOrder != "" {
+		if !product.IsSupportedSortOrder(rawOrder) {
+			fields = append(fields, FieldError{
+				Field:   "order",
+				Message: "order must be one of: asc, desc",
+			})
+		} else {
+			input.Order = rawOrder
 		}
 	}
 

@@ -494,3 +494,198 @@ func TestStoreListProductsSearchNoResults(t *testing.T) {
 		t.Fatalf("expected total pages %d, got %d", 0, result.TotalPages)
 	}
 }
+
+func TestStoreListProductsSortByNameAscending(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			Name:        "Mouse",
+			Description: "Mouse inalámbrico",
+			Price:       120,
+		},
+		{
+			Name:        "Laptop",
+			Description: "Equipo para desarrollo backend",
+			Price:       3500,
+		},
+		{
+			Name:        "Keyboard",
+			Description: "Teclado mecánico",
+			Price:       250,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := store.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product, got %v", err)
+		}
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldName,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 3 {
+		t.Fatalf("expected 3 products, got %d", len(result.Items))
+	}
+
+	expectedNames := []string{"Keyboard", "Laptop", "Mouse"}
+
+	for index, expectedName := range expectedNames {
+		if result.Items[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, result.Items[index].Name)
+		}
+	}
+
+	if result.Sort != SortFieldName {
+		t.Fatalf("expected sort %q, got %q", SortFieldName, result.Sort)
+	}
+
+	if result.Order != SortOrderAsc {
+		t.Fatalf("expected order %q, got %q", SortOrderAsc, result.Order)
+	}
+}
+
+func TestStoreListProductsSortByPriceDescending(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			Name:        "Mouse",
+			Description: "Mouse inalámbrico",
+			Price:       120,
+		},
+		{
+			Name:        "Laptop",
+			Description: "Equipo para desarrollo backend",
+			Price:       3500,
+		},
+		{
+			Name:        "Keyboard",
+			Description: "Teclado mecánico",
+			Price:       250,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := store.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product, got %v", err)
+		}
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldPrice,
+		Order:    SortOrderDesc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 3 {
+		t.Fatalf("expected 3 products, got %d", len(result.Items))
+	}
+
+	expectedNames := []string{"Laptop", "Keyboard", "Mouse"}
+
+	for index, expectedName := range expectedNames {
+		if result.Items[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, result.Items[index].Name)
+		}
+	}
+
+	if result.Sort != SortFieldPrice {
+		t.Fatalf("expected sort %q, got %q", SortFieldPrice, result.Sort)
+	}
+
+	if result.Order != SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", SortOrderDesc, result.Order)
+	}
+}
+
+func TestStoreListProductsSearchSortAndPagination(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			Name:        "Laptop Basic",
+			Description: "Laptop para oficina",
+			Price:       2500,
+		},
+		{
+			Name:        "Laptop Pro",
+			Description: "Laptop para desarrollo backend",
+			Price:       4500,
+		},
+		{
+			Name:        "Laptop Air",
+			Description: "Laptop ligera",
+			Price:       3500,
+		},
+		{
+			Name:        "Mouse",
+			Description: "Mouse inalámbrico",
+			Price:       120,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := store.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product, got %v", err)
+		}
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 2,
+		Search:   "laptop",
+		Sort:     SortFieldPrice,
+		Order:    SortOrderDesc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(result.Items))
+	}
+
+	expectedNames := []string{"Laptop Pro", "Laptop Air"}
+
+	for index, expectedName := range expectedNames {
+		if result.Items[index].Name != expectedName {
+			t.Fatalf("expected product at index %d to be %q, got %q", index, expectedName, result.Items[index].Name)
+		}
+	}
+
+	if result.Total != 3 {
+		t.Fatalf("expected total %d, got %d", 3, result.Total)
+	}
+
+	if result.TotalPages != 2 {
+		t.Fatalf("expected total pages %d, got %d", 2, result.TotalPages)
+	}
+
+	if result.Search != "laptop" {
+		t.Fatalf("expected search %q, got %q", "laptop", result.Search)
+	}
+
+	if result.Sort != SortFieldPrice {
+		t.Fatalf("expected sort %q, got %q", SortFieldPrice, result.Sort)
+	}
+
+	if result.Order != SortOrderDesc {
+		t.Fatalf("expected order %q, got %q", SortOrderDesc, result.Order)
+	}
+}
