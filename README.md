@@ -182,3 +182,21 @@ ErrNotFound
 Context cancelado
 Concurrencia básica
 ```
+
+## Validación de requests
+
+La API diferencia entre errores de request inválido y errores de validación.
+
+### JSON inválido
+
+Cuando el body no es JSON válido, la API responde:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "invalid request body",
+    "request_id": "invalid-json-test"
+  }
+}
+```

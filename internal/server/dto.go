@@ -20,7 +20,13 @@ type ErrorResponse struct {
 }
 
 type APIError struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	RequestID string `json:"request_id,omitempty"`
+	Code      string       `json:"code"`
+	Message   string       `json:"message"`
+	RequestID string       `json:"request_id,omitempty"`
+	Fields    []FieldError `json:"fields,omitempty"`
+}
+
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
 }

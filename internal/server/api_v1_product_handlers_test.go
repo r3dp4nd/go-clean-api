@@ -145,19 +145,19 @@ func TestCreateProductValidationError(t *testing.T) {
 	body := []byte(`{
 		"name": "",
 		"description": "Producto inválido",
-		"price": 100
+		"price": -10
 	}`)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/products", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set(requestIDHeader, "invalid-product-name")
+	request.Header.Set(requestIDHeader, "invalid-product-data")
 
 	responseRecorder := httptest.NewRecorder()
 
 	handler.ServeHTTP(responseRecorder, request)
 
-	if responseRecorder.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, responseRecorder.Code)
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d", http.StatusUnprocessableEntity, responseRecorder.Code)
 	}
 
 	var response ErrorResponse
@@ -165,16 +165,36 @@ func TestCreateProductValidationError(t *testing.T) {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
 
-	if response.Error.Code != errorCodeInvalidRequest {
-		t.Fatalf("expected error code %q, got %q", errorCodeInvalidRequest, response.Error.Code)
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
 	}
 
-	if response.Error.Message != "name is required" {
-		t.Fatalf("expected error message %q, got %q", "name is required", response.Error.Message)
+	if response.Error.Message != "validation failed" {
+		t.Fatalf("expected error message %q, got %q", "validation failed", response.Error.Message)
 	}
 
-	if response.Error.RequestID != "invalid-product-name" {
-		t.Fatalf("expected request id %q, got %q", "invalid-product-name", response.Error.RequestID)
+	if response.Error.RequestID != "invalid-product-data" {
+		t.Fatalf("expected request id %q, got %q", "invalid-product-data", response.Error.RequestID)
+	}
+
+	if len(response.Error.Fields) != 2 {
+		t.Fatalf("expected 2 field errors, got %d", len(response.Error.Fields))
+	}
+
+	expectedFields := map[string]string{
+		"name":  "name is required",
+		"price": "price must be greater than or equal to zero",
+	}
+
+	for _, field := range response.Error.Fields {
+		expectedMessage, ok := expectedFields[field.Field]
+		if !ok {
+			t.Fatalf("unexpected field error: %s", field.Field)
+		}
+
+		if field.Message != expectedMessage {
+			t.Fatalf("expected message %q for field %q, got %q", expectedMessage, field.Field, field.Message)
+		}
 	}
 }
 

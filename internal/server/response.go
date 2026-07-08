@@ -12,6 +12,7 @@ const (
 	errorCodeNotFound         = "not_found"
 	errorCodeMethodNotAllowed = "method_not_allowed"
 	errorCodeInvalidRequest   = "invalid_request"
+	errorCodeValidation       = "validation_error"
 	errorCodeInternal         = "internal_error"
 )
 
@@ -40,11 +41,23 @@ func readJSON(r *http.Request, dst any) error {
 }
 
 func writeError(w http.ResponseWriter, r *http.Request, statusCode int, code string, message string) {
+	writeErrorWithFields(w, r, statusCode, code, message, nil)
+}
+
+func writeErrorWithFields(
+	w http.ResponseWriter,
+	r *http.Request,
+	statusCode int,
+	code string,
+	message string,
+	fields []FieldError,
+) {
 	response := ErrorResponse{
 		Error: APIError{
 			Code:      code,
 			Message:   message,
 			RequestID: getRequestID(r.Context()),
+			Fields:    fields,
 		},
 	}
 
@@ -61,8 +74,19 @@ func writeBadRequest(w http.ResponseWriter, r *http.Request, message string) {
 	)
 }
 
-func writeMethodNotAllowed(w http.ResponseWriter, r *http.Request, allowedMethod string) {
-	w.Header().Set("Allow", allowedMethod)
+func writeValidationError(w http.ResponseWriter, r *http.Request, fields []FieldError) {
+	writeErrorWithFields(
+		w,
+		r,
+		http.StatusUnprocessableEntity,
+		errorCodeValidation,
+		"validation failed",
+		fields,
+	)
+}
+
+func writeMethodNotAllowed(w http.ResponseWriter, r *http.Request, allowedMethods string) {
+	w.Header().Set("Allow", allowedMethods)
 
 	writeError(
 		w,

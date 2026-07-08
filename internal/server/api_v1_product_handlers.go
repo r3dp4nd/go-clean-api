@@ -72,8 +72,8 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateCreateProductRequest(request); err != nil {
-		writeBadRequest(w, r, err.Error())
+	if fields := validateCreateProductRequest(request); len(fields) > 0 {
+		writeValidationError(w, r, fields)
 		return
 	}
 
@@ -115,8 +115,8 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 
-	if err := validateUpdateProductRequest(request); err != nil {
-		writeBadRequest(w, r, err.Error())
+	if fields := validateUpdateProductRequest(request); len(fields) > 0 {
+		writeValidationError(w, r, fields)
 		return
 	}
 
@@ -167,30 +167,6 @@ func productIDFromPath(path string) (string, bool) {
 	}
 
 	return id, true
-}
-
-func validateCreateProductRequest(request CreateProductRequest) error {
-	if strings.TrimSpace(request.Name) == "" {
-		return errors.New("name is required")
-	}
-
-	if request.Price < 0 {
-		return errors.New("price must be greater than or equal to zero")
-	}
-
-	return nil
-}
-
-func validateUpdateProductRequest(request UpdateProductRequest) error {
-	if strings.TrimSpace(request.Name) == "" {
-		return errors.New("name is required")
-	}
-
-	if request.Price < 0 {
-		return errors.New("price must be greater than or equal to zero")
-	}
-
-	return nil
 }
 
 func toProductResponse(item product.Product) ProductResponse {
