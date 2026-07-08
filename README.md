@@ -312,3 +312,10 @@ Dockerfile
 .dockerignore
 Makefile
 ```
+## Docker Compose
+
+La API puede levantarse con Docker Compose usando:
+
+```bash
+make compose-up
+```

@@ -7,6 +7,9 @@ DOCKER_IMAGE?=go-clean-api
 DOCKER_TAG?=local
 DOCKER_PLATFORM?=linux/arm64
 
+COMPOSE_FILE?=compose.yaml
+COMPOSE_PROJECT_NAME?=go-clean-api
+
 APP_ENV?=development
 HTTP_HOST?=
 HTTP_PORT?=8080
@@ -20,7 +23,7 @@ CORS_ALLOWED_METHODS?=GET,POST,PUT,DELETE,OPTIONS
 CORS_ALLOWED_HEADERS?=Content-Type,Authorization,X-Request-ID
 CORS_MAX_AGE_SECONDS?=600
 
-.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy docker-build docker-run docker-stop docker-logs
+.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-logs compose-ps
 
 help:
 	@echo "Comandos disponibles:"
@@ -38,6 +41,12 @@ help:
 	@echo "  make docker-run   - Ejecuta la API en Docker"
 	@echo "  make docker-stop  - Detiene y elimina el contenedor Docker"
 	@echo "  make docker-logs  - Muestra logs del contenedor Docker"
+	@echo "  make compose-build - Construye servicios con Docker Compose"
+	@echo "  make compose-up    - Levanta servicios con Docker Compose"
+	@echo "  make compose-up-d  - Levanta servicios en segundo plano"
+	@echo "  make compose-down  - Detiene servicios de Docker Compose"
+	@echo "  make compose-logs  - Muestra logs de Docker Compose"
+	@echo "  make compose-ps    - Lista servicios de Docker Compose"
 
 run:
 	APP_NAME=$(APP_NAME) \
@@ -115,3 +124,39 @@ docker-stop:
 
 docker-logs:
 	docker logs -f $(APP_NAME)
+
+compose-build:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		build
+
+compose-up:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		up --build
+
+compose-up-d:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		up --build -d
+
+compose-down:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		down
+
+compose-logs:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		logs -f api
+
+compose-ps:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		ps
