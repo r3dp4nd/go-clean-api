@@ -123,6 +123,23 @@ func (s *Store) Get(ctx context.Context, id string) (Product, error) {
 	return item, nil
 }
 
+func (s *Store) GetBySKU(ctx context.Context, sku string) (Product, error) {
+	if err := ctx.Err(); err != nil {
+		return Product{}, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, item := range s.products {
+		if strings.EqualFold(item.SKU, strings.TrimSpace(sku)) {
+			return item, nil
+		}
+	}
+
+	return Product{}, ErrNotFound
+}
+
 func (s *Store) Create(ctx context.Context, input CreateProductInput) (Product, error) {
 	if err := ctx.Err(); err != nil {
 		return Product{}, err

@@ -409,3 +409,13 @@ curl -i \
   }' \
   http://localhost:8080/api/v1/products
 ```
+
+## Consultar producto por SKU
+
+Además de consultar productos por ID técnico, la API permite consultar por SKU.
+
+### Buscar por ID
+
+```bash
+curl -i http://localhost:8080/api/v1/products/<ID>
+```

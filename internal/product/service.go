@@ -52,6 +52,10 @@ func (s *Service) Get(ctx context.Context, id string) (Product, error) {
 	return s.repository.Get(ctx, strings.TrimSpace(id))
 }
 
+func (s *Service) GetBySKU(ctx context.Context, sku string) (Product, error) {
+	return s.repository.GetBySKU(ctx, normalizeSKU(sku))
+}
+
 func (s *Service) Create(ctx context.Context, input CreateProductInput) (Product, error) {
 	normalizedInput := CreateProductInput{
 		SKU:         normalizeSKU(input.SKU),

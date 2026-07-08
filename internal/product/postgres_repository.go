@@ -87,6 +87,42 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error
 	return item, nil
 }
 
+func (r *PostgresRepository) GetBySKU(ctx context.Context, sku string) (Product, error) {
+	const query = `
+		SELECT
+			id::text,
+			sku,
+			name,
+			description,
+			price::float8,
+			created_at,
+			updated_at
+		FROM products
+		WHERE upper(sku) = upper($1)
+	`
+
+	var item Product
+
+	err := r.pool.QueryRow(ctx, query, strings.TrimSpace(sku)).Scan(
+		&item.ID,
+		&item.SKU,
+		&item.Name,
+		&item.Description,
+		&item.Price,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Product{}, ErrNotFound
+		}
+
+		return Product{}, fmt.Errorf("get product by sku: %w", err)
+	}
+
+	return item, nil
+}
+
 func (r *PostgresRepository) Create(ctx context.Context, input CreateProductInput) (Product, error) {
 	const query = `
 		INSERT INTO products (

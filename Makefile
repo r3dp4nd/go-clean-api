@@ -35,7 +35,7 @@ DB_SSL_MODE?=disable
 DATABASE_URL?=postgres://$(DB_USER):$(DB_PASSWORD)@localhost:$(POSTGRES_PORT)/$(DB_NAME)?sslmode=$(DB_SSL_MODE)
 MIGRATIONS_PATH?=db/migrations
 
-SEED_PRODUCTS_TRUNCATE=false make seed-products
+SEED_PRODUCTS_TRUNCATE=true
 
 .PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables seed-products
 

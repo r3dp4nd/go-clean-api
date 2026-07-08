@@ -896,3 +896,116 @@ func TestUpdateProductDuplicateSKUReturnsConflict(t *testing.T) {
 		t.Fatalf("expected request id %q, got %q", "duplicate-sku-update", response.Error.RequestID)
 	}
 }
+
+func TestGetProductBySKU(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "LAPTOP-SKU-TEST",
+		"name": "Laptop SKU Test",
+		"description": "Producto para búsqueda por SKU",
+		"price": 3500
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/sku/laptop-sku-test",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "get-product-by-sku")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product response: %v", err)
+	}
+
+	if response.SKU != "LAPTOP-SKU-TEST" {
+		t.Fatalf("expected sku %q, got %q", "LAPTOP-SKU-TEST", response.SKU)
+	}
+
+	if response.Name != "Laptop SKU Test" {
+		t.Fatalf("expected name %q, got %q", "Laptop SKU Test", response.Name)
+	}
+}
+
+func TestGetProductBySKUNotFound(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/sku/missing-sku",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "product-sku-not-found")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNotFound, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, response.Error.Code)
+	}
+
+	if response.Error.Message != "product not found" {
+		t.Fatalf("expected message %q, got %q", "product not found", response.Error.Message)
+	}
+
+	if response.Error.RequestID != "product-sku-not-found" {
+		t.Fatalf("expected request id %q, got %q", "product-sku-not-found", response.Error.RequestID)
+	}
+}
+
+func TestGetProductBySKUMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/sku/LAPTOP-001",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "product-sku-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
+	}
+}

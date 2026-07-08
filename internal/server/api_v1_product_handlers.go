@@ -7,7 +7,10 @@ import (
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
-const apiV1ProductsPrefix = "/api/v1/products/"
+const (
+	apiV1ProductsPrefix    = "/api/v1/products/"
+	apiV1ProductsSKUPrefix = "/api/v1/products/sku/"
+)
 
 func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -42,6 +45,21 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 	default:
 		writeMethodNotAllowed(w, r, "GET, PUT, DELETE")
 	}
+}
+
+func (h *Handler) handleAPIV1ProductBySKU(w http.ResponseWriter, r *http.Request) {
+	sku, ok := pathParamAfterPrefix(r.URL.Path, apiV1ProductsSKUPrefix)
+	if !ok {
+		writeNotFound(w, r)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, r, http.MethodGet)
+		return
+	}
+
+	h.getProductBySKU(w, r, sku)
 }
 
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +149,22 @@ func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request, id string) 
 		}
 
 		h.logger.Error("error getting product", "error", err, "request_id", getRequestID(r.Context()))
+		writeInternalError(w, r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toProductResponse(item))
+}
+
+func (h *Handler) getProductBySKU(w http.ResponseWriter, r *http.Request, sku string) {
+	item, err := h.productService.GetBySKU(r.Context(), sku)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
+			return
+		}
+
+		h.logger.Error("error getting product by sku", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
 		return
 	}

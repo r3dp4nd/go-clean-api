@@ -11,17 +11,19 @@ import (
 var errRepositoryFailure = errors.New("repository failure")
 
 type fakeRepository struct {
-	listFn   func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
-	getFn    func(ctx context.Context, id string) (Product, error)
-	createFn func(ctx context.Context, input CreateProductInput) (Product, error)
-	updateFn func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
-	deleteFn func(ctx context.Context, id string) error
+	listFn     func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
+	getFn      func(ctx context.Context, id string) (Product, error)
+	getBySKUFn func(ctx context.Context, sku string) (Product, error)
+	createFn   func(ctx context.Context, input CreateProductInput) (Product, error)
+	updateFn   func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
+	deleteFn   func(ctx context.Context, id string) error
 
-	listCalls   int
-	getCalls    int
-	createCalls int
-	updateCalls int
-	deleteCalls int
+	listCalls     int
+	getCalls      int
+	getBySKUCalls int
+	createCalls   int
+	updateCalls   int
+	deleteCalls   int
 }
 
 func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
@@ -39,6 +41,16 @@ func (f *fakeRepository) Get(ctx context.Context, id string) (Product, error) {
 
 	if f.getFn != nil {
 		return f.getFn(ctx, id)
+	}
+
+	return Product{}, nil
+}
+
+func (f *fakeRepository) GetBySKU(ctx context.Context, sku string) (Product, error) {
+	f.getBySKUCalls++
+
+	if f.getBySKUFn != nil {
+		return f.getBySKUFn(ctx, sku)
 	}
 
 	return Product{}, nil
@@ -673,5 +685,52 @@ func TestServiceCreateProductSKURequiredDoesNotCallRepository(t *testing.T) {
 
 	if validationErr.Fields[0].Field != "sku" {
 		t.Fatalf("expected field %q, got %q", "sku", validationErr.Fields[0].Field)
+	}
+}
+
+func TestServiceGetProductBySKUNormalizesSKU(t *testing.T) {
+	repository := &fakeRepository{
+		getBySKUFn: func(ctx context.Context, sku string) (Product, error) {
+			if sku != "LAPTOP-001" {
+				t.Fatalf("expected normalized sku %q, got %q", "LAPTOP-001", sku)
+			}
+
+			return Product{
+				ID:    "1",
+				SKU:   sku,
+				Name:  "Laptop",
+				Price: 3500,
+			}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	item, err := service.GetBySKU(context.Background(), "  laptop-001  ")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.getBySKUCalls != 1 {
+		t.Fatalf("expected GetBySKU to be called once, got %d", repository.getBySKUCalls)
+	}
+
+	if item.SKU != "LAPTOP-001" {
+		t.Fatalf("expected SKU %q, got %q", "LAPTOP-001", item.SKU)
+	}
+}
+
+func TestServiceGetProductBySKUNotFound(t *testing.T) {
+	repository := &fakeRepository{
+		getBySKUFn: func(ctx context.Context, sku string) (Product, error) {
+			return Product{}, ErrNotFound
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.GetBySKU(context.Background(), "missing-sku")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
