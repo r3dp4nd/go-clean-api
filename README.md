@@ -429,3 +429,18 @@ El endpoint de listado de productos soporta filtros por fecha de creación.
 ```bash
 curl -i "http://localhost:8080/api/v1/products?created_from=2026-01-01"
 ```
+
+## Response envelope estándar
+
+La API usa un envelope estándar para recursos individuales y listados.
+
+### Recurso individual
+
+Endpoints:
+
+```text
+POST /api/v1/products
+GET /api/v1/products/{id}
+GET /api/v1/products/sku/{sku}
+PUT /api/v1/products/{id}
+```

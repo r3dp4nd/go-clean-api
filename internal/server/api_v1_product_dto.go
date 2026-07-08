@@ -12,6 +12,10 @@ type ProductResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type ProductResourceResponse struct {
+	Data ProductResponse `json:"data"`
+}
+
 type ProductListResponse struct {
 	Data []ProductResponse `json:"data"`
 	Meta PaginationMeta    `json:"meta"`

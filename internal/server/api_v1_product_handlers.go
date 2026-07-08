@@ -141,7 +141,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toProductResponse(item))
+	writeJSON(w, http.StatusCreated, toProductResourceResponse(item))
 }
 
 func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request, id string) {
@@ -157,7 +157,7 @@ func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request, id string) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toProductResponse(item))
+	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
 }
 
 func (h *Handler) getProductBySKU(w http.ResponseWriter, r *http.Request, sku string) {
@@ -173,7 +173,7 @@ func (h *Handler) getProductBySKU(w http.ResponseWriter, r *http.Request, sku st
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toProductResponse(item))
+	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
 }
 
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id string) {
@@ -217,7 +217,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toProductResponse(item))
+	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
 }
 
 func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id string) {
@@ -257,5 +257,11 @@ func toProductResponse(item product.Product) ProductResponse {
 		Price:       item.Price,
 		CreatedAt:   item.CreatedAt,
 		UpdatedAt:   item.UpdatedAt,
+	}
+}
+
+func toProductResourceResponse(item product.Product) ProductResourceResponse {
+	return ProductResourceResponse{
+		Data: toProductResponse(item),
 	}
 }

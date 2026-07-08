@@ -39,10 +39,7 @@ func TestProductsCRUD(t *testing.T) {
 		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
 	}
 
-	var createdProduct ProductResponse
-	if err := json.NewDecoder(createRecorder.Body).Decode(&createdProduct); err != nil {
-		t.Fatalf("failed to decode created product: %v", err)
-	}
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
 
 	if createdProduct.ID == "" {
 		t.Fatal("expected product id to be generated")
@@ -103,10 +100,12 @@ func TestProductsCRUD(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, getRecorder.Code)
 	}
 
-	var fetchedProduct ProductResponse
-	if err := json.NewDecoder(getRecorder.Body).Decode(&fetchedProduct); err != nil {
-		t.Fatalf("failed to decode fetched product: %v", err)
+	var fetchedResponse ProductResourceResponse
+	if err := json.NewDecoder(getRecorder.Body).Decode(&fetchedResponse); err != nil {
+		t.Fatalf("failed to decode fetched product response: %v", err)
 	}
+
+	fetchedProduct := fetchedResponse.Data
 
 	if fetchedProduct.ID != createdProduct.ID {
 		t.Fatalf("expected product id %q, got %q", createdProduct.ID, fetchedProduct.ID)
@@ -134,10 +133,12 @@ func TestProductsCRUD(t *testing.T) {
 		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, updateRecorder.Code, updateRecorder.Body.String())
 	}
 
-	var updatedProduct ProductResponse
-	if err := json.NewDecoder(updateRecorder.Body).Decode(&updatedProduct); err != nil {
-		t.Fatalf("failed to decode updated product: %v", err)
+	var updatedResponse ProductResourceResponse
+	if err := json.NewDecoder(updateRecorder.Body).Decode(&updatedResponse); err != nil {
+		t.Fatalf("failed to decode updated product response: %v", err)
 	}
+
+	updatedProduct := updatedResponse.Data
 
 	if updatedProduct.Name != "Laptop Pro" {
 		t.Fatalf("expected product name %q, got %q", "Laptop Pro", updatedProduct.Name)
@@ -852,10 +853,12 @@ func TestUpdateProductDuplicateSKUReturnsConflict(t *testing.T) {
 		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, secondRecorder.Code, secondRecorder.Body.String())
 	}
 
-	var secondProduct ProductResponse
-	if err := json.NewDecoder(secondRecorder.Body).Decode(&secondProduct); err != nil {
-		t.Fatalf("failed to decode second product: %v", err)
+	var secondResponse ProductResourceResponse
+	if err := json.NewDecoder(secondRecorder.Body).Decode(&secondResponse); err != nil {
+		t.Fatalf("failed to decode second product response: %v", err)
 	}
+
+	secondProduct := secondResponse.Data
 
 	updateBody := []byte(`{
 		"sku": "PRODUCT-001",
@@ -938,17 +941,17 @@ func TestGetProductBySKU(t *testing.T) {
 		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
 	}
 
-	var response ProductResponse
+	var response ProductResourceResponse
 	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
-		t.Fatalf("failed to decode product response: %v", err)
+		t.Fatalf("failed to decode product resource response: %v", err)
 	}
 
-	if response.SKU != "LAPTOP-SKU-TEST" {
-		t.Fatalf("expected sku %q, got %q", "LAPTOP-SKU-TEST", response.SKU)
+	if response.Data.SKU != "LAPTOP-SKU-TEST" {
+		t.Fatalf("expected sku %q, got %q", "LAPTOP-SKU-TEST", response.Data.SKU)
 	}
 
-	if response.Name != "Laptop SKU Test" {
-		t.Fatalf("expected name %q, got %q", "Laptop SKU Test", response.Name)
+	if response.Data.Name != "Laptop SKU Test" {
+		t.Fatalf("expected name %q, got %q", "Laptop SKU Test", response.Data.Name)
 	}
 }
 
@@ -1309,4 +1312,59 @@ func TestListProductsInvalidCreatedFrom(t *testing.T) {
 	if response.Error.Fields[0].Field != "created_from" {
 		t.Fatalf("expected field %q, got %q", "created_from", response.Error.Fields[0].Field)
 	}
+}
+
+func TestCreateProductReturnsResourceEnvelope(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	body := []byte(`{
+		"sku": "ENVELOPE-001",
+		"name": "Envelope Product",
+		"description": "Producto para validar envelope",
+		"price": 100
+	}`)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(requestIDHeader, "envelope-create")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductResourceResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product resource response: %v", err)
+	}
+
+	if response.Data.ID == "" {
+		t.Fatal("expected data.id to be generated")
+	}
+
+	if response.Data.SKU != "ENVELOPE-001" {
+		t.Fatalf("expected data.sku %q, got %q", "ENVELOPE-001", response.Data.SKU)
+	}
+
+	if response.Data.Name != "Envelope Product" {
+		t.Fatalf("expected data.name %q, got %q", "Envelope Product", response.Data.Name)
+	}
+}
+
+func decodeProductResourceResponse(t *testing.T, recorder *httptest.ResponseRecorder) ProductResponse {
+	t.Helper()
+
+	var response ProductResourceResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product resource response: %v", err)
+	}
+
+	return response.Data
 }
