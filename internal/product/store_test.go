@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestStoreCreateProduct(t *testing.T) {
@@ -860,5 +861,61 @@ func TestStoreListProductsFilterByPriceRange(t *testing.T) {
 
 	if result.MaxPrice == nil || *result.MaxPrice != maxPrice {
 		t.Fatalf("expected max price %v, got %v", maxPrice, result.MaxPrice)
+	}
+}
+
+func TestStoreListProductsFilterByCreatedRange(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		SKU:         "DATE-LAPTOP-BASIC",
+		Name:        "Laptop Basic",
+		Description: "Laptop para oficina",
+		Price:       2500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "DATE-LAPTOP-PRO",
+		Name:        "Laptop Pro",
+		Description: "Laptop para desarrollo backend",
+		Price:       4500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	createdFrom := time.Now().UTC().Add(-24 * time.Hour)
+	createdTo := time.Now().UTC().Add(24 * time.Hour)
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:        1,
+		PageSize:    10,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+		Sort:        SortFieldCreatedAt,
+		Order:       SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(result.Items))
+	}
+
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
+	}
+
+	if result.CreatedFrom == nil || !result.CreatedFrom.Equal(createdFrom) {
+		t.Fatalf("expected created from %v, got %v", createdFrom, result.CreatedFrom)
+	}
+
+	if result.CreatedTo == nil || !result.CreatedTo.Equal(createdTo) {
+		t.Fatalf("expected created to %v, got %v", createdTo, result.CreatedTo)
 	}
 }

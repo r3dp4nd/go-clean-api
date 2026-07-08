@@ -84,15 +84,17 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 	response := ProductListResponse{
 		Data: make([]ProductResponse, 0, len(result.Items)),
 		Meta: PaginationMeta{
-			Page:       result.Page,
-			PageSize:   result.PageSize,
-			Total:      result.Total,
-			TotalPages: result.TotalPages,
-			Search:     result.Search,
-			Sort:       result.Sort,
-			Order:      result.Order,
-			MinPrice:   result.MinPrice,
-			MaxPrice:   result.MaxPrice,
+			Page:        result.Page,
+			PageSize:    result.PageSize,
+			Total:       result.Total,
+			TotalPages:  result.TotalPages,
+			Search:      result.Search,
+			Sort:        result.Sort,
+			Order:       result.Order,
+			MinPrice:    result.MinPrice,
+			MaxPrice:    result.MaxPrice,
+			CreatedFrom: result.CreatedFrom,
+			CreatedTo:   result.CreatedTo,
 		},
 	}
 

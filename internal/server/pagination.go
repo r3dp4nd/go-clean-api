@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
@@ -103,6 +104,39 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 		})
 	}
 
+	if rawCreatedFrom := strings.TrimSpace(query.Get("created_from")); rawCreatedFrom != "" {
+		createdFrom, err := parseProductDateTimeQuery(rawCreatedFrom, false)
+		if err != nil {
+			fields = append(fields, FieldError{
+				Field:   "created_from",
+				Message: "created_from must be a valid date in YYYY-MM-DD or RFC3339 format",
+			})
+		} else {
+			input.CreatedFrom = &createdFrom
+		}
+	}
+
+	if rawCreatedTo := strings.TrimSpace(query.Get("created_to")); rawCreatedTo != "" {
+		createdTo, err := parseProductDateTimeQuery(rawCreatedTo, true)
+		if err != nil {
+			fields = append(fields, FieldError{
+				Field:   "created_to",
+				Message: "created_to must be a valid date in YYYY-MM-DD or RFC3339 format",
+			})
+		} else {
+			input.CreatedTo = &createdTo
+		}
+	}
+
+	if input.CreatedFrom != nil &&
+		input.CreatedTo != nil &&
+		input.CreatedFrom.After(*input.CreatedTo) {
+		fields = append(fields, FieldError{
+			Field:   "created_range",
+			Message: "created_from must be less than or equal to created_to",
+		})
+	}
+
 	if rawSort := strings.ToLower(strings.TrimSpace(query.Get("sort"))); rawSort != "" {
 		if !product.IsSupportedSortField(rawSort) {
 			fields = append(fields, FieldError{
@@ -126,4 +160,25 @@ func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldEr
 	}
 
 	return input, fields
+}
+
+func parseProductDateTimeQuery(value string, endOfDay bool) (time.Time, error) {
+	value = strings.TrimSpace(value)
+
+	if parsedValue, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsedValue.UTC(), nil
+	}
+
+	parsedDate, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	parsedDate = parsedDate.UTC()
+
+	if endOfDay {
+		return parsedDate.Add(24 * time.Hour).Add(-time.Nanosecond), nil
+	}
+
+	return parsedDate, nil
 }

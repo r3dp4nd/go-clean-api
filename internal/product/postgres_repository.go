@@ -40,16 +40,18 @@ func (r *PostgresRepository) List(ctx context.Context, input ListProductsInput) 
 	}
 
 	return ListProductsResult{
-		Items:      items,
-		Total:      total,
-		Page:       normalizedInput.Page,
-		PageSize:   normalizedInput.PageSize,
-		TotalPages: calculateTotalPages(total, normalizedInput.PageSize),
-		Search:     normalizedInput.Search,
-		Sort:       normalizedInput.Sort,
-		Order:      normalizedInput.Order,
-		MinPrice:   normalizedInput.MinPrice,
-		MaxPrice:   normalizedInput.MaxPrice,
+		Items:       items,
+		Total:       total,
+		Page:        normalizedInput.Page,
+		PageSize:    normalizedInput.PageSize,
+		TotalPages:  calculateTotalPages(total, normalizedInput.PageSize),
+		Search:      normalizedInput.Search,
+		Sort:        normalizedInput.Sort,
+		Order:       normalizedInput.Order,
+		MinPrice:    normalizedInput.MinPrice,
+		MaxPrice:    normalizedInput.MaxPrice,
+		CreatedFrom: normalizedInput.CreatedFrom,
+		CreatedTo:   normalizedInput.CreatedTo,
 	}, nil
 }
 
@@ -340,8 +342,8 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 }
 
 func buildProductWhereClause(input ListProductsInput) (string, []any) {
-	conditions := make([]string, 0, 3)
-	args := make([]any, 0, 3)
+	conditions := make([]string, 0, 5)
+	args := make([]any, 0, 5)
 
 	if input.Search != "" {
 		args = append(args, input.Search)
@@ -377,6 +379,26 @@ func buildProductWhereClause(input ListProductsInput) (string, []any) {
 		conditions = append(
 			conditions,
 			fmt.Sprintf("price <= $%d", position),
+		)
+	}
+
+	if input.CreatedFrom != nil {
+		args = append(args, *input.CreatedFrom)
+		position := len(args)
+
+		conditions = append(
+			conditions,
+			fmt.Sprintf("created_at >= $%d", position),
+		)
+	}
+
+	if input.CreatedTo != nil {
+		args = append(args, *input.CreatedTo)
+		position := len(args)
+
+		conditions = append(
+			conditions,
+			fmt.Sprintf("created_at <= $%d", position),
 		)
 	}
 

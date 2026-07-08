@@ -64,7 +64,14 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	products := make([]Product, 0, len(s.products))
 
 	for _, item := range s.products {
-		if productMatchesFilters(item, normalizedSearch, input.MinPrice, input.MaxPrice) {
+		if productMatchesFilters(
+			item,
+			normalizedSearch,
+			input.MinPrice,
+			input.MaxPrice,
+			input.CreatedFrom,
+			input.CreatedTo,
+		) {
 			products = append(products, item)
 		}
 	}
@@ -82,16 +89,18 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 
 	if offset >= total {
 		return ListProductsResult{
-			Items:      products[offset:end],
-			Total:      total,
-			Page:       input.Page,
-			PageSize:   input.PageSize,
-			TotalPages: totalPages,
-			Search:     input.Search,
-			Sort:       input.Sort,
-			Order:      input.Order,
-			MinPrice:   input.MinPrice,
-			MaxPrice:   input.MaxPrice,
+			Items:       products[offset:end],
+			Total:       total,
+			Page:        input.Page,
+			PageSize:    input.PageSize,
+			TotalPages:  totalPages,
+			Search:      input.Search,
+			Sort:        input.Sort,
+			Order:       input.Order,
+			MinPrice:    input.MinPrice,
+			MaxPrice:    input.MaxPrice,
+			CreatedFrom: input.CreatedFrom,
+			CreatedTo:   input.CreatedTo,
 		}, nil
 	}
 
@@ -100,16 +109,18 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	}
 
 	return ListProductsResult{
-		Items:      products[offset:end],
-		Total:      total,
-		Page:       input.Page,
-		PageSize:   input.PageSize,
-		TotalPages: totalPages,
-		Search:     input.Search,
-		Sort:       input.Sort,
-		Order:      input.Order,
-		MinPrice:   input.MinPrice,
-		MaxPrice:   input.MaxPrice,
+		Items:       products[offset:end],
+		Total:       total,
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+		TotalPages:  totalPages,
+		Search:      input.Search,
+		Sort:        input.Sort,
+		Order:       input.Order,
+		MinPrice:    input.MinPrice,
+		MaxPrice:    input.MaxPrice,
+		CreatedFrom: input.CreatedFrom,
+		CreatedTo:   input.CreatedTo,
 	}, nil
 }
 
@@ -342,6 +353,8 @@ func productMatchesFilters(
 	search string,
 	minPrice *float64,
 	maxPrice *float64,
+	createdFrom *time.Time,
+	createdTo *time.Time,
 ) bool {
 	if search != "" && !productMatchesSearch(item, search) {
 		return false
@@ -352,6 +365,14 @@ func productMatchesFilters(
 	}
 
 	if maxPrice != nil && item.Price > *maxPrice {
+		return false
+	}
+
+	if createdFrom != nil && item.CreatedAt.Before(*createdFrom) {
+		return false
+	}
+
+	if createdTo != nil && item.CreatedAt.After(*createdTo) {
 		return false
 	}
 

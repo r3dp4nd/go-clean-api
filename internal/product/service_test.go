@@ -839,3 +839,109 @@ func TestServiceListProductsInvalidPriceRangeDoesNotCallRepository(t *testing.T)
 		t.Fatalf("expected field %q, got %q", "price_range", validationErr.Fields[0].Field)
 	}
 }
+
+func TestServiceListProductsWithCreatedRange(t *testing.T) {
+	createdFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	createdTo := time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC)
+
+	expectedResult := ListProductsResult{
+		Items: []Product{
+			{
+				ID:        "1",
+				SKU:       "LAPTOP-001",
+				Name:      "Laptop",
+				Price:     3500,
+				CreatedAt: createdFrom.Add(24 * time.Hour),
+			},
+		},
+		Total:       1,
+		Page:        1,
+		PageSize:    10,
+		TotalPages:  1,
+		Sort:        SortFieldCreatedAt,
+		Order:       SortOrderDesc,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+	}
+
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			if input.CreatedFrom == nil || !input.CreatedFrom.Equal(createdFrom) {
+				t.Fatalf("expected created from %v, got %v", createdFrom, input.CreatedFrom)
+			}
+
+			if input.CreatedTo == nil || !input.CreatedTo.Equal(createdTo) {
+				t.Fatalf("expected created to %v, got %v", createdTo, input.CreatedTo)
+			}
+
+			return expectedResult, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	result, err := service.List(context.Background(), ListProductsInput{
+		Page:        1,
+		PageSize:    10,
+		Sort:        SortFieldCreatedAt,
+		Order:       SortOrderDesc,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.listCalls != 1 {
+		t.Fatalf("expected List to be called once, got %d", repository.listCalls)
+	}
+
+	if result.CreatedFrom == nil || !result.CreatedFrom.Equal(createdFrom) {
+		t.Fatalf("expected result created from %v, got %v", createdFrom, result.CreatedFrom)
+	}
+
+	if result.CreatedTo == nil || !result.CreatedTo.Equal(createdTo) {
+		t.Fatalf("expected result created to %v, got %v", createdTo, result.CreatedTo)
+	}
+}
+
+func TestServiceListProductsInvalidCreatedRangeDoesNotCallRepository(t *testing.T) {
+	createdFrom := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	createdTo := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			t.Fatal("repository List should not be called when created range validation fails")
+			return ListProductsResult{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.List(context.Background(), ListProductsInput{
+		Page:        1,
+		PageSize:    10,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.listCalls != 0 {
+		t.Fatalf("expected List not to be called, got %d calls", repository.listCalls)
+	}
+
+	if len(validationErr.Fields) != 1 {
+		t.Fatalf("expected 1 validation field, got %d", len(validationErr.Fields))
+	}
+
+	if validationErr.Fields[0].Field != "created_range" {
+		t.Fatalf("expected field %q, got %q", "created_range", validationErr.Fields[0].Field)
+	}
+}

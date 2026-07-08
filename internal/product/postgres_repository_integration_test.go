@@ -354,3 +354,61 @@ func TestIntegrationPostgresProductRepositoryListByPriceRange(t *testing.T) {
 		}
 	}
 }
+
+func TestIntegrationPostgresProductRepositoryListByCreatedRange(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	products := []CreateProductInput{
+		{
+			SKU:         "DATE-LAPTOP-BASIC",
+			Name:        "Laptop Basic",
+			Description: "Laptop para oficina",
+			Price:       2500,
+		},
+		{
+			SKU:         "DATE-LAPTOP-PRO",
+			Name:        "Laptop Pro",
+			Description: "Laptop para desarrollo backend",
+			Price:       4500,
+		},
+	}
+
+	for _, input := range products {
+		if _, err := repository.Create(ctx, input); err != nil {
+			t.Fatalf("expected no error creating product %q, got %v", input.Name, err)
+		}
+	}
+
+	createdFrom := time.Now().UTC().Add(-24 * time.Hour)
+	createdTo := time.Now().UTC().Add(24 * time.Hour)
+
+	result, err := repository.List(ctx, ListProductsInput{
+		Page:        1,
+		PageSize:    10,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+		Sort:        SortFieldCreatedAt,
+		Order:       SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing by created range, got %v", err)
+	}
+
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(result.Items))
+	}
+
+	if result.CreatedFrom == nil || !result.CreatedFrom.Equal(createdFrom) {
+		t.Fatalf("expected created from %v, got %v", createdFrom, result.CreatedFrom)
+	}
+
+	if result.CreatedTo == nil || !result.CreatedTo.Equal(createdTo) {
+		t.Fatalf("expected created to %v, got %v", createdTo, result.CreatedTo)
+	}
+}

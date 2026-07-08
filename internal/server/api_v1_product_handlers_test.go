@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
@@ -1154,5 +1155,158 @@ func TestListProductsInvalidMinPrice(t *testing.T) {
 
 	if response.Error.Fields[0].Field != "min_price" {
 		t.Fatalf("expected field %q, got %q", "min_price", response.Error.Fields[0].Field)
+	}
+}
+
+func TestListProductsFilterByCreatedRange(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	products := []string{
+		`{"sku":"DATE-LAPTOP-BASIC","name":"Laptop Basic","description":"Laptop para oficina","price":2500}`,
+		`{"sku":"DATE-LAPTOP-PRO","name":"Laptop Pro","description":"Laptop para desarrollo backend","price":4500}`,
+	}
+
+	for _, body := range products {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, responseRecorder.Code, responseRecorder.Body.String())
+		}
+	}
+
+	createdFrom := time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02")
+	createdTo := time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02")
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		fmt.Sprintf(
+			"/api/v1/products?created_from=%s&created_to=%s&sort=created_at&order=asc",
+			createdFrom,
+			createdTo,
+		),
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "created-range-products")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(response.Data))
+	}
+
+	if response.Meta.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, response.Meta.Total)
+	}
+
+	if response.Meta.CreatedFrom == nil {
+		t.Fatal("expected created_from meta to be set")
+	}
+
+	if response.Meta.CreatedTo == nil {
+		t.Fatal("expected created_to meta to be set")
+	}
+
+	if response.Meta.Sort != product.SortFieldCreatedAt {
+		t.Fatalf("expected sort %q, got %q", product.SortFieldCreatedAt, response.Meta.Sort)
+	}
+
+	if response.Meta.Order != product.SortOrderAsc {
+		t.Fatalf("expected order %q, got %q", product.SortOrderAsc, response.Meta.Order)
+	}
+}
+
+func TestListProductsInvalidCreatedRange(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?created_from=2026-12-31&created_to=2026-01-01",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "invalid-created-range")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "created_range" {
+		t.Fatalf("expected field %q, got %q", "created_range", response.Error.Fields[0].Field)
+	}
+
+	if response.Error.RequestID != "invalid-created-range" {
+		t.Fatalf("expected request id %q, got %q", "invalid-created-range", response.Error.RequestID)
+	}
+}
+
+func TestListProductsInvalidCreatedFrom(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products?created_from=not-a-date",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "invalid-created-from")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "created_from" {
+		t.Fatalf("expected field %q, got %q", "created_from", response.Error.Fields[0].Field)
 	}
 }

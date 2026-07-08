@@ -180,6 +180,15 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 		})
 	}
 
+	if input.CreatedFrom != nil &&
+		input.CreatedTo != nil &&
+		input.CreatedFrom.After(*input.CreatedTo) {
+		fields = append(fields, FieldViolation{
+			Field:   "created_range",
+			Message: "created_from must be less than or equal to created_to",
+		})
+	}
+
 	if len(input.Search) > MaxSearchLength {
 		fields = append(fields, FieldViolation{
 			Field:   "search",

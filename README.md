@@ -419,3 +419,13 @@ Además de consultar productos por ID técnico, la API permite consultar por SKU
 ```bash
 curl -i http://localhost:8080/api/v1/products/<ID>
 ```
+
+## Filtros por fecha de creación
+
+El endpoint de listado de productos soporta filtros por fecha de creación.
+
+### Desde una fecha
+
+```bash
+curl -i "http://localhost:8080/api/v1/products?created_from=2026-01-01"
+```

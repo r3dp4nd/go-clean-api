@@ -27,24 +27,28 @@ type UpdateProductInput struct {
 }
 
 type ListProductsInput struct {
-	Page     int
-	PageSize int
-	Search   string
-	Sort     string
-	Order    string
-	MinPrice *float64
-	MaxPrice *float64
+	Page        int
+	PageSize    int
+	Search      string
+	Sort        string
+	Order       string
+	MinPrice    *float64
+	MaxPrice    *float64
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
 }
 
 type ListProductsResult struct {
-	Items      []Product
-	Total      int
-	Page       int
-	PageSize   int
-	TotalPages int
-	Search     string
-	Sort       string
-	Order      string
-	MinPrice   *float64
-	MaxPrice   *float64
+	Items       []Product
+	Total       int
+	Page        int
+	PageSize    int
+	TotalPages  int
+	Search      string
+	Sort        string
+	Order       string
+	MinPrice    *float64
+	MaxPrice    *float64
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
 }
