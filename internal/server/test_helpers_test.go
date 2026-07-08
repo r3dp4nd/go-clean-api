@@ -20,6 +20,6 @@ func newTestHTTPHandler() http.Handler {
 	registerRoutes(mux, handlers)
 
 	return requestIDMiddleware(
-		loggingMiddleware(logger, mux),
+		loggingMiddleware(logger, recoveryMiddleware(logger, mux)),
 	)
 }

@@ -232,3 +232,13 @@ Archivo principal:
 ```text
 internal/server/path_params.go
 ```
+
+## Recovery middleware
+
+La API usa un middleware de recuperación para capturar `panic` inesperados dentro de handlers HTTP.
+
+Archivo principal:
+
+```text
+internal/server/recovery_middleware.go
+```

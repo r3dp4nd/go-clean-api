@@ -33,7 +33,7 @@ func New(options Options) *Server {
 	registerRoutes(mux, handlers)
 
 	handler := requestIDMiddleware(
-		loggingMiddleware(options.Logger, mux),
+		loggingMiddleware(options.Logger, recoveryMiddleware(options.Logger, mux)),
 	)
 
 	httpServer := &http.Server{
