@@ -45,7 +45,7 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
-	input, fields := readProductPaginationQuery(r)
+	input, fields := readProductListQuery(r)
 	if len(fields) > 0 {
 		writeValidationError(w, r, fields)
 		return
@@ -70,6 +70,7 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 			PageSize:   result.PageSize,
 			Total:      result.Total,
 			TotalPages: result.TotalPages,
+			Search:     result.Search,
 		},
 	}
 

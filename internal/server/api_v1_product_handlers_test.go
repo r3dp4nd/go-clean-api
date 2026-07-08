@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
 func TestProductsCRUD(t *testing.T) {
@@ -400,5 +403,146 @@ func TestListProductsPagination(t *testing.T) {
 
 	if response.Meta.TotalPages != 2 {
 		t.Fatalf("expected total pages %d, got %d", 2, response.Meta.TotalPages)
+	}
+}
+
+func TestListProductsSearch(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	products := []string{
+		`{"name":"Laptop","description":"Equipo para desarrollo backend","price":3500}`,
+		`{"name":"Mouse","description":"Mouse inalámbrico","price":120}`,
+		`{"name":"Keyboard","description":"Teclado mecánico","price":250}`,
+	}
+
+	for _, body := range products {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, responseRecorder.Code)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?search=laptop&page=1&page_size=10", nil)
+	request.Header.Set(requestIDHeader, "search-products")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(response.Data))
+	}
+
+	if response.Data[0].Name != "Laptop" {
+		t.Fatalf("expected product %q, got %q", "Laptop", response.Data[0].Name)
+	}
+
+	if response.Meta.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, response.Meta.Total)
+	}
+
+	if response.Meta.Search != "laptop" {
+		t.Fatalf("expected search %q, got %q", "laptop", response.Meta.Search)
+	}
+}
+
+func TestListProductsSearchByDescription(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	body := []byte(`{
+		"name": "Laptop",
+		"description": "Equipo para desarrollo backend",
+		"price": 3500
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(body),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, createRecorder.Code)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?search=backend", nil)
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(response.Data))
+	}
+
+	if response.Data[0].Name != "Laptop" {
+		t.Fatalf("expected product %q, got %q", "Laptop", response.Data[0].Name)
+	}
+}
+
+func TestListProductsInvalidSearch(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	longSearch := strings.Repeat("a", product.MaxSearchLength+1)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?search="+longSearch, nil)
+	request.Header.Set(requestIDHeader, "invalid-search")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d", http.StatusUnprocessableEntity, responseRecorder.Code)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "search" {
+		t.Fatalf("expected field %q, got %q", "search", response.Error.Fields[0].Field)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
-func readProductPaginationQuery(r *http.Request) (product.ListProductsInput, []FieldError) {
+func readProductListQuery(r *http.Request) (product.ListProductsInput, []FieldError) {
 	query := r.URL.Query()
 
 	input := product.ListProductsInput{
@@ -44,6 +44,17 @@ func readProductPaginationQuery(r *http.Request) (product.ListProductsInput, []F
 			})
 		} else {
 			input.PageSize = pageSize
+		}
+	}
+
+	if rawSearch := strings.TrimSpace(query.Get("search")); rawSearch != "" {
+		if len(rawSearch) > product.MaxSearchLength {
+			fields = append(fields, FieldError{
+				Field:   "search",
+				Message: "search must be less than or equal to 120 characters",
+			})
+		} else {
+			input.Search = rawSearch
 		}
 	}
 

@@ -26,6 +26,7 @@ type UpdateProductInput struct {
 type ListProductsInput struct {
 	Page     int
 	PageSize int
+	Search   string
 }
 
 type ListProductsResult struct {
@@ -34,4 +35,5 @@ type ListProductsResult struct {
 	Page       int
 	PageSize   int
 	TotalPages int
+	Search     string
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -40,13 +41,18 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 		input.PageSize = DefaultPageSize
 	}
 
+	input.Search = strings.TrimSpace(input.Search)
+	normalizedSearch := strings.ToLower(input.Search)
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	products := make([]Product, 0, len(s.products))
 
 	for _, item := range s.products {
-		products = append(products, item)
+		if normalizedSearch == "" || productMatchesSearch(item, normalizedSearch) {
+			products = append(products, item)
+		}
 	}
 
 	sort.Slice(products, func(i, j int) bool {
@@ -64,6 +70,7 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 			Page:       input.Page,
 			PageSize:   input.PageSize,
 			TotalPages: totalPages,
+			Search:     input.Search,
 		}, nil
 	}
 
@@ -78,6 +85,7 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 		Page:       input.Page,
 		PageSize:   input.PageSize,
 		TotalPages: totalPages,
+		Search:     input.Search,
 	}, nil
 }
 
@@ -180,4 +188,12 @@ func productIDLess(left string, right string) bool {
 	}
 
 	return left < right
+}
+
+func productMatchesSearch(item Product, search string) bool {
+	name := strings.ToLower(item.Name)
+	description := strings.ToLower(item.Description)
+
+	return strings.Contains(name, search) ||
+		strings.Contains(description, search)
 }

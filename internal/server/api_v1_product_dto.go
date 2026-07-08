@@ -17,10 +17,11 @@ type ProductListResponse struct {
 }
 
 type PaginationMeta struct {
-	Page       int `json:"page"`
-	PageSize   int `json:"page_size"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"page_size"`
+	Total      int    `json:"total"`
+	TotalPages int    `json:"total_pages"`
+	Search     string `json:"search,omitempty"`
 }
 
 type CreateProductRequest struct {

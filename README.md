@@ -267,3 +267,12 @@ El endpoint `GET /api/v1/products` soporta paginación por query params.
 page      # número de página, mínimo 1
 page_size # tamaño de página, mínimo 1, máximo 100
 ```
+
+## Filtros de Products
+
+El endpoint `GET /api/v1/products` soporta búsqueda básica por `search`.
+
+### Buscar productos
+
+```bash
+curl -i "http://localhost:8080/api/v1/products?search=laptop&page=1&page_size=10"

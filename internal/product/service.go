@@ -6,9 +6,11 @@ import (
 )
 
 const (
-	DefaultPage                 = 1
-	DefaultPageSize             = 10
-	MaxPageSize                 = 100
+	DefaultPage     = 1
+	DefaultPageSize = 10
+	MaxPageSize     = 100
+	MaxSearchLength = 120
+
 	maxProductNameLength        = 120
 	maxProductDescriptionLength = 500
 )
@@ -98,6 +100,8 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 		input.PageSize = DefaultPageSize
 	}
 
+	input.Search = strings.TrimSpace(input.Search)
+
 	var fields []FieldViolation
 
 	if input.Page < 1 {
@@ -118,6 +122,13 @@ func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, err
 		fields = append(fields, FieldViolation{
 			Field:   "page_size",
 			Message: "page_size must be less than or equal to 100",
+		})
+	}
+
+	if len(input.Search) > MaxSearchLength {
+		fields = append(fields, FieldViolation{
+			Field:   "search",
+			Message: "search must be less than or equal to 120 characters",
 		})
 	}
 

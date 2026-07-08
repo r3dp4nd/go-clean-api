@@ -92,6 +92,7 @@ func TestServiceListProducts(t *testing.T) {
 		Page:       1,
 		PageSize:   10,
 		TotalPages: 1,
+		Search:     "lap",
 	}
 
 	repository := &fakeRepository{
@@ -104,6 +105,10 @@ func TestServiceListProducts(t *testing.T) {
 				t.Fatalf("expected page size %d, got %d", 10, input.PageSize)
 			}
 
+			if input.Search != "lap" {
+				t.Fatalf("expected search %q, got %q", "lap", input.Search)
+			}
+
 			return expectedResult, nil
 		},
 	}
@@ -113,6 +118,7 @@ func TestServiceListProducts(t *testing.T) {
 	result, err := service.List(context.Background(), ListProductsInput{
 		Page:     1,
 		PageSize: 10,
+		Search:   "  lap  ",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -128,6 +134,10 @@ func TestServiceListProducts(t *testing.T) {
 
 	if result.Total != 2 {
 		t.Fatalf("expected total %d, got %d", 2, result.Total)
+	}
+
+	if result.Search != "lap" {
+		t.Fatalf("expected search %q, got %q", "lap", result.Search)
 	}
 }
 
@@ -509,5 +519,42 @@ func TestServiceListProductsValidationErrorDoesNotCallRepository(t *testing.T) {
 
 	if len(validationErr.Fields) != 2 {
 		t.Fatalf("expected 2 validation fields, got %d", len(validationErr.Fields))
+	}
+}
+
+func TestServiceListProductsSearchTooLongDoesNotCallRepository(t *testing.T) {
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			t.Fatal("repository List should not be called when search validation fails")
+			return ListProductsResult{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.List(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Search:   strings.Repeat("a", MaxSearchLength+1),
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.listCalls != 0 {
+		t.Fatalf("expected List not to be called, got %d calls", repository.listCalls)
+	}
+
+	if len(validationErr.Fields) != 1 {
+		t.Fatalf("expected 1 validation field, got %d", len(validationErr.Fields))
+	}
+
+	if validationErr.Fields[0].Field != "search" {
+		t.Fatalf("expected field %q, got %q", "search", validationErr.Fields[0].Field)
 	}
 }

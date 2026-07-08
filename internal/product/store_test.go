@@ -371,3 +371,126 @@ func TestStoreListProductsPagination(t *testing.T) {
 		t.Fatalf("expected total pages %d, got %d", 3, result.TotalPages)
 	}
 }
+
+func TestStoreListProductsSearchByName(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		Name:        "Laptop",
+		Description: "Equipo para desarrollo backend",
+		Price:       3500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating laptop, got %v", err)
+	}
+
+	_, err = store.Create(ctx, CreateProductInput{
+		Name:        "Mouse",
+		Description: "Mouse inalámbrico",
+		Price:       120,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating mouse, got %v", err)
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Search:   "lap",
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(result.Items))
+	}
+
+	if result.Items[0].Name != "Laptop" {
+		t.Fatalf("expected product %q, got %q", "Laptop", result.Items[0].Name)
+	}
+
+	if result.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, result.Total)
+	}
+
+	if result.Search != "lap" {
+		t.Fatalf("expected search %q, got %q", "lap", result.Search)
+	}
+}
+
+func TestStoreListProductsSearchByDescription(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		Name:        "Laptop",
+		Description: "Equipo para desarrollo backend",
+		Price:       3500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating laptop, got %v", err)
+	}
+
+	_, err = store.Create(ctx, CreateProductInput{
+		Name:        "Keyboard",
+		Description: "Teclado mecánico",
+		Price:       250,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating keyboard, got %v", err)
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Search:   "backend",
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(result.Items))
+	}
+
+	if result.Items[0].Name != "Laptop" {
+		t.Fatalf("expected product %q, got %q", "Laptop", result.Items[0].Name)
+	}
+}
+
+func TestStoreListProductsSearchNoResults(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	_, err := store.Create(ctx, CreateProductInput{
+		Name:        "Laptop",
+		Description: "Equipo para desarrollo backend",
+		Price:       3500,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating laptop, got %v", err)
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Search:   "tablet",
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 0 {
+		t.Fatalf("expected 0 products, got %d", len(result.Items))
+	}
+
+	if result.Total != 0 {
+		t.Fatalf("expected total %d, got %d", 0, result.Total)
+	}
+
+	if result.TotalPages != 0 {
+		t.Fatalf("expected total pages %d, got %d", 0, result.TotalPages)
+	}
+}
