@@ -52,3 +52,8 @@ type ListProductsResult struct {
 	CreatedFrom *time.Time
 	CreatedTo   *time.Time
 }
+
+type SKUExistsResult struct {
+	SKU    string
+	Exists bool
+}

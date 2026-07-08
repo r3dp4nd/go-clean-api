@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
@@ -60,6 +61,45 @@ func (h *Handler) handleAPIV1ProductBySKU(w http.ResponseWriter, r *http.Request
 	}
 
 	h.getProductBySKU(w, r, sku)
+}
+
+func (h *Handler) handleAPIV1ProductExists(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, r, http.MethodGet)
+		return
+	}
+
+	sku := strings.TrimSpace(r.URL.Query().Get("sku"))
+	if sku == "" {
+		writeValidationError(w, r, []FieldError{
+			{
+				Field:   "sku",
+				Message: "sku is required",
+			},
+		})
+		return
+	}
+
+	result, err := h.productService.SKUExists(r.Context(), sku)
+	if err != nil {
+		h.logger.Error(
+			"error checking product sku existence",
+			"error", err,
+			"request_id", getRequestID(r.Context()),
+		)
+
+		writeInternalError(w, r)
+		return
+	}
+
+	response := ProductSKUExistsResponse{
+		Data: ProductSKUExistsData{
+			SKU:    result.SKU,
+			Exists: result.Exists,
+		},
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {

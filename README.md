@@ -444,3 +444,13 @@ GET /api/v1/products/{id}
 GET /api/v1/products/sku/{sku}
 PUT /api/v1/products/{id}
 ```
+
+## Validar existencia de SKU
+
+La API permite validar si un SKU ya existe.
+
+Endpoint:
+
+```text
+GET /api/v1/products/exists?sku=<SKU>
+```

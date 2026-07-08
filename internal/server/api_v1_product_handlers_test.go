@@ -1358,6 +1358,155 @@ func TestCreateProductReturnsResourceEnvelope(t *testing.T) {
 	}
 }
 
+func TestProductSKUExistsReturnsTrue(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "EXISTS-SKU-001",
+		"name": "Exists Product",
+		"description": "Producto para validar existencia de SKU",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/exists?sku=exists-sku-001",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "sku-exists-true")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductSKUExistsResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode sku exists response: %v", err)
+	}
+
+	if response.Data.SKU != "EXISTS-SKU-001" {
+		t.Fatalf("expected sku %q, got %q", "EXISTS-SKU-001", response.Data.SKU)
+	}
+
+	if !response.Data.Exists {
+		t.Fatal("expected exists to be true")
+	}
+}
+
+func TestProductSKUExistsReturnsFalse(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/exists?sku=missing-sku",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "sku-exists-false")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ProductSKUExistsResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode sku exists response: %v", err)
+	}
+
+	if response.Data.SKU != "MISSING-SKU" {
+		t.Fatalf("expected sku %q, got %q", "MISSING-SKU", response.Data.SKU)
+	}
+
+	if response.Data.Exists {
+		t.Fatal("expected exists to be false")
+	}
+}
+
+func TestProductSKUExistsRequiresSKU(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/exists",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "sku-exists-required")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusUnprocessableEntity, responseRecorder.Code, responseRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if response.Error.RequestID != "sku-exists-required" {
+		t.Fatalf("expected request id %q, got %q", "sku-exists-required", response.Error.RequestID)
+	}
+
+	if len(response.Error.Fields) != 1 {
+		t.Fatalf("expected 1 field error, got %d", len(response.Error.Fields))
+	}
+
+	if response.Error.Fields[0].Field != "sku" {
+		t.Fatalf("expected field %q, got %q", "sku", response.Error.Fields[0].Field)
+	}
+}
+
+func TestProductSKUExistsMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/exists?sku=LAPTOP-001",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "sku-exists-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
+	}
+}
+
 func decodeProductResourceResponse(t *testing.T, recorder *httptest.ResponseRecorder) ProductResponse {
 	t.Helper()
 

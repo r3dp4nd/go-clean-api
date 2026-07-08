@@ -16,6 +16,15 @@ type ProductResourceResponse struct {
 	Data ProductResponse `json:"data"`
 }
 
+type ProductSKUExistsResponse struct {
+	Data ProductSKUExistsData `json:"data"`
+}
+
+type ProductSKUExistsData struct {
+	SKU    string `json:"sku"`
+	Exists bool   `json:"exists"`
+}
+
 type ProductListResponse struct {
 	Data []ProductResponse `json:"data"`
 	Meta PaginationMeta    `json:"meta"`

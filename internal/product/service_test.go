@@ -945,3 +945,81 @@ func TestServiceListProductsInvalidCreatedRangeDoesNotCallRepository(t *testing.
 		t.Fatalf("expected field %q, got %q", "created_range", validationErr.Fields[0].Field)
 	}
 }
+
+func TestServiceSKUExistsReturnsTrue(t *testing.T) {
+	repository := &fakeRepository{
+		getBySKUFn: func(ctx context.Context, sku string) (Product, error) {
+			if sku != "LAPTOP-001" {
+				t.Fatalf("expected normalized sku %q, got %q", "LAPTOP-001", sku)
+			}
+
+			return Product{
+				ID:    "1",
+				SKU:   sku,
+				Name:  "Laptop",
+				Price: 3500,
+			}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	result, err := service.SKUExists(context.Background(), "  laptop-001  ")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.getBySKUCalls != 1 {
+		t.Fatalf("expected GetBySKU to be called once, got %d", repository.getBySKUCalls)
+	}
+
+	if result.SKU != "LAPTOP-001" {
+		t.Fatalf("expected sku %q, got %q", "LAPTOP-001", result.SKU)
+	}
+
+	if !result.Exists {
+		t.Fatal("expected exists to be true")
+	}
+}
+
+func TestServiceSKUExistsReturnsFalseWhenNotFound(t *testing.T) {
+	repository := &fakeRepository{
+		getBySKUFn: func(ctx context.Context, sku string) (Product, error) {
+			return Product{}, ErrNotFound
+		},
+	}
+
+	service := NewService(repository)
+
+	result, err := service.SKUExists(context.Background(), "missing-sku")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.getBySKUCalls != 1 {
+		t.Fatalf("expected GetBySKU to be called once, got %d", repository.getBySKUCalls)
+	}
+
+	if result.SKU != "MISSING-SKU" {
+		t.Fatalf("expected sku %q, got %q", "MISSING-SKU", result.SKU)
+	}
+
+	if result.Exists {
+		t.Fatal("expected exists to be false")
+	}
+}
+
+func TestServiceSKUExistsRepositoryError(t *testing.T) {
+	repository := &fakeRepository{
+		getBySKUFn: func(ctx context.Context, sku string) (Product, error) {
+			return Product{}, errRepositoryFailure
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.SKUExists(context.Background(), "laptop-001")
+	if !errors.Is(err, errRepositoryFailure) {
+		t.Fatalf("expected repository error, got %v", err)
+	}
+}

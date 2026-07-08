@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"errors"
 	"strings"
 )
 
@@ -54,6 +55,27 @@ func (s *Service) Get(ctx context.Context, id string) (Product, error) {
 
 func (s *Service) GetBySKU(ctx context.Context, sku string) (Product, error) {
 	return s.repository.GetBySKU(ctx, normalizeSKU(sku))
+}
+
+func (s *Service) SKUExists(ctx context.Context, sku string) (SKUExistsResult, error) {
+	normalizedSKU := normalizeSKU(sku)
+
+	_, err := s.repository.GetBySKU(ctx, normalizedSKU)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return SKUExistsResult{
+				SKU:    normalizedSKU,
+				Exists: false,
+			}, nil
+		}
+
+		return SKUExistsResult{}, err
+	}
+
+	return SKUExistsResult{
+		SKU:    normalizedSKU,
+		Exists: true,
+	}, nil
 }
 
 func (s *Service) Create(ctx context.Context, input CreateProductInput) (Product, error) {
