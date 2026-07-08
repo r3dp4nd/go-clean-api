@@ -340,3 +340,13 @@ Dependencia principal:
 ```text
 github.com/jackc/pgx/v5/pgxpool
 ```
+
+## Migraciones SQL
+
+El proyecto incluye migraciones SQL manuales para preparar la base de datos.
+
+Carpeta principal:
+
+```text
+db/migrations
+```
