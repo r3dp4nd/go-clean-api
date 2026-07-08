@@ -34,6 +34,7 @@ func (a *App) Run() error {
 	)
 
 	productStore := product.NewStore()
+	productService := product.NewService(productStore)
 
 	httpServer := server.New(server.Options{
 		Addr:              a.config.HTTP.Addr,
@@ -42,7 +43,7 @@ func (a *App) Run() error {
 		WriteTimeout:      a.config.HTTP.WriteTimeout,
 		IdleTimeout:       a.config.HTTP.IdleTimeout,
 		Logger:            a.logger,
-		ProductStore:      productStore,
+		ProductService:    productService,
 	})
 
 	serverErrors := make(chan error, 1)

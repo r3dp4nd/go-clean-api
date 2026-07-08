@@ -8,14 +8,14 @@ import (
 )
 
 type Handler struct {
-	logger       *slog.Logger
-	productStore *product.Store
+	logger         *slog.Logger
+	productService *product.Service
 }
 
-func NewHandler(logger *slog.Logger, productStore *product.Store) *Handler {
+func NewHandler(logger *slog.Logger, productService *product.Service) *Handler {
 	return &Handler{
-		logger:       logger,
-		productStore: productStore,
+		logger:         logger,
+		productService: productService,
 	}
 }
 

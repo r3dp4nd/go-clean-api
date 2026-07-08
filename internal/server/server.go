@@ -17,7 +17,7 @@ type Options struct {
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
 	Logger            *slog.Logger
-	ProductStore      *product.Store
+	ProductService    *product.Service
 }
 
 type Server struct {
@@ -28,7 +28,7 @@ type Server struct {
 func New(options Options) *Server {
 	mux := http.NewServeMux()
 
-	handlers := NewHandler(options.Logger, options.ProductStore)
+	handlers := NewHandler(options.Logger, options.ProductService)
 
 	registerRoutes(mux, handlers)
 

@@ -46,7 +46,7 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
-	items, err := h.productStore.List(r.Context())
+	items, err := h.productService.List(r.Context())
 	if err != nil {
 		h.logger.Error("error listing products", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
@@ -72,17 +72,17 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if fields := validateCreateProductRequest(request); len(fields) > 0 {
-		writeValidationError(w, r, fields)
-		return
-	}
-
-	item, err := h.productStore.Create(r.Context(), product.CreateProductInput{
-		Name:        strings.TrimSpace(request.Name),
-		Description: strings.TrimSpace(request.Description),
+	item, err := h.productService.Create(r.Context(), product.CreateProductInput{
+		Name:        request.Name,
+		Description: request.Description,
 		Price:       request.Price,
 	})
 	if err != nil {
+		if validationErr, ok := err.(product.ValidationError); ok {
+			writeProductValidationError(w, r, validationErr)
+			return
+		}
+
 		h.logger.Error("error creating product", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
 		return
@@ -92,7 +92,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request, id string) {
-	item, err := h.productStore.Get(r.Context(), id)
+	item, err := h.productService.Get(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
@@ -115,17 +115,17 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 
-	if fields := validateUpdateProductRequest(request); len(fields) > 0 {
-		writeValidationError(w, r, fields)
-		return
-	}
-
-	item, err := h.productStore.Update(r.Context(), id, product.UpdateProductInput{
-		Name:        strings.TrimSpace(request.Name),
-		Description: strings.TrimSpace(request.Description),
+	item, err := h.productService.Update(r.Context(), id, product.UpdateProductInput{
+		Name:        request.Name,
+		Description: request.Description,
 		Price:       request.Price,
 	})
 	if err != nil {
+		if validationErr, ok := err.(product.ValidationError); ok {
+			writeProductValidationError(w, r, validationErr)
+			return
+		}
+
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
 			return
@@ -140,7 +140,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 }
 
 func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id string) {
-	if err := h.productStore.Delete(r.Context(), id); err != nil {
+	if err := h.productService.Delete(r.Context(), id); err != nil {
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
 			return
@@ -167,6 +167,19 @@ func productIDFromPath(path string) (string, bool) {
 	}
 
 	return id, true
+}
+
+func writeProductValidationError(w http.ResponseWriter, r *http.Request, validationErr product.ValidationError) {
+	fields := make([]FieldError, 0, len(validationErr.Fields))
+
+	for _, field := range validationErr.Fields {
+		fields = append(fields, FieldError{
+			Field:   field.Field,
+			Message: field.Message,
+		})
+	}
+
+	writeValidationError(w, r, fields)
 }
 
 func toProductResponse(item product.Product) ProductResponse {

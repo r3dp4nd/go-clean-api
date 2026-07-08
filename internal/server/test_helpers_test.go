@@ -11,10 +11,11 @@ import (
 func newTestHTTPHandler() http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	productStore := product.NewStore()
+	productService := product.NewService(productStore)
 
 	mux := http.NewServeMux()
 
-	handlers := NewHandler(logger, productStore)
+	handlers := NewHandler(logger, productService)
 
 	registerRoutes(mux, handlers)
 

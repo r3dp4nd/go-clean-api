@@ -200,3 +200,11 @@ Cuando el body no es JSON válido, la API responde:
   }
 }
 ```
+
+## Capa de servicio para Products
+
+El módulo `Products` usa una separación por capas:
+
+```text
+HTTP Handler → Product Service → Product Repository
+```
