@@ -32,11 +32,13 @@ DB_USER?=app
 DB_PASSWORD?=app
 DB_SSL_MODE?=disable
 
+DATABASE_URL?=postgres://$(DB_USER):$(DB_PASSWORD)@localhost:$(POSTGRES_PORT)/$(DB_NAME)?sslmode=$(DB_SSL_MODE)
+MIGRATIONS_PATH?=db/migrations
+
 PRODUCTS_MIGRATION_UP?=db/migrations/000001_create_products_table.up.sql
 PRODUCTS_MIGRATION_DOWN?=db/migrations/000001_create_products_table.down.sql
 
-.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-products db-tables
-
+.PHONY: help run build clean test test-v test-cover test-race fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables
 help:
 	@echo "Comandos disponibles:"
 	@echo "  make run              - Ejecuta la API en modo desarrollo"
@@ -62,10 +64,12 @@ help:
 	@echo "  make compose-ps       - Lista servicios de Docker Compose"
 	@echo "  make compose-db-logs  - Muestra logs de PostgreSQL"
 	@echo "  make compose-db-shell - Abre psql dentro del contenedor PostgreSQL"
-	@echo "  make db-migrate-up    - Ejecuta migración SQL de Products"
-	@echo "  make db-migrate-down  - Revierte migración SQL de Products"
+	@echo "  make db-migrate-up      - Ejecuta migraciones pendientes"
+	@echo "  make db-migrate-down    - Revierte la última migración"
 	@echo "  make db-products      - Lista productos directamente desde PostgreSQL"
 	@echo "  make db-tables        - Lista tablas de PostgreSQL"
+	@echo "  make db-migrate-version - Muestra versión actual de migraciones"
+	@echo "  make db-migrate-force   - Fuerza una versión de migración. Uso: make db-migrate-force VERSION=1"
 
 run:
 	APP_NAME=$(APP_NAME) \
@@ -211,16 +215,28 @@ compose-db-shell:
 		exec postgres psql -U $(DB_USER) -d $(DB_NAME)
 
 db-migrate-up:
-	cat $(PRODUCTS_MIGRATION_UP) | docker compose \
-		-p $(COMPOSE_PROJECT_NAME) \
-		-f $(COMPOSE_FILE) \
-		exec -T postgres psql -U $(DB_USER) -d $(DB_NAME)
+	migrate \
+		-path $(MIGRATIONS_PATH) \
+		-database "$(DATABASE_URL)" \
+		up
 
 db-migrate-down:
-	cat $(PRODUCTS_MIGRATION_DOWN) | docker compose \
-		-p $(COMPOSE_PROJECT_NAME) \
-		-f $(COMPOSE_FILE) \
-		exec -T postgres psql -U $(DB_USER) -d $(DB_NAME)
+	migrate \
+		-path $(MIGRATIONS_PATH) \
+		-database "$(DATABASE_URL)" \
+		down 1
+
+db-migrate-version:
+	migrate \
+		-path $(MIGRATIONS_PATH) \
+		-database "$(DATABASE_URL)" \
+		version
+
+db-migrate-force:
+	migrate \
+		-path $(MIGRATIONS_PATH) \
+		-database "$(DATABASE_URL)" \
+		force $(VERSION)
 
 db-products:
 	docker compose \

@@ -360,3 +360,13 @@ Archivo principal:
 ```text
 internal/product/postgres_repository.go
 ```
+
+## Migraciones versionadas con golang-migrate
+
+El proyecto usa `golang-migrate` para manejar migraciones versionadas de PostgreSQL.
+
+Herramienta:
+
+```text
+golang-migrate/migrate
+```
