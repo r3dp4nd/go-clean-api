@@ -290,3 +290,25 @@ name
 price
 created_at
 updated_at
+```
+
+## Docker
+
+La API puede ejecutarse dentro de Docker usando una imagen multi-stage.
+
+Archivos principales:
+
+```text
+Dockerfile
+.dockerignore
+Makefile## Docker
+
+La API puede ejecutarse dentro de Docker usando una imagen multi-stage.
+
+Archivos principales:
+
+```text
+Dockerfile
+.dockerignore
+Makefile
+```
