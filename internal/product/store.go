@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -26,9 +27,17 @@ func NewStore() *Store {
 	}
 }
 
-func (s *Store) List(ctx context.Context) ([]Product, error) {
+func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return ListProductsResult{}, err
+	}
+
+	if input.Page < 1 {
+		input.Page = DefaultPage
+	}
+
+	if input.PageSize < 1 {
+		input.PageSize = DefaultPageSize
 	}
 
 	s.mu.RLock()
@@ -41,10 +50,35 @@ func (s *Store) List(ctx context.Context) ([]Product, error) {
 	}
 
 	sort.Slice(products, func(i, j int) bool {
-		return products[i].ID < products[j].ID
+		return productIDLess(products[i].ID, products[j].ID)
 	})
 
-	return products, nil
+	total := len(products)
+	totalPages := calculateTotalPages(total, input.PageSize)
+
+	offset := (input.Page - 1) * input.PageSize
+	if offset >= total {
+		return ListProductsResult{
+			Items:      []Product{},
+			Total:      total,
+			Page:       input.Page,
+			PageSize:   input.PageSize,
+			TotalPages: totalPages,
+		}, nil
+	}
+
+	end := offset + input.PageSize
+	if end > total {
+		end = total
+	}
+
+	return ListProductsResult{
+		Items:      products[offset:end],
+		Total:      total,
+		Page:       input.Page,
+		PageSize:   input.PageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (s *Store) Get(ctx context.Context, id string) (Product, error) {
@@ -127,4 +161,23 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	delete(s.products, id)
 
 	return nil
+}
+
+func calculateTotalPages(total int, pageSize int) int {
+	if total == 0 {
+		return 0
+	}
+
+	return (total + pageSize - 1) / pageSize
+}
+
+func productIDLess(left string, right string) bool {
+	leftID, leftErr := strconv.ParseInt(left, 10, 64)
+	rightID, rightErr := strconv.ParseInt(right, 10, 64)
+
+	if leftErr == nil && rightErr == nil {
+		return leftID < rightID
+	}
+
+	return left < right
 }

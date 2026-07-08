@@ -3,7 +3,7 @@ package product
 import "context"
 
 type Repository interface {
-	List(ctx context.Context) ([]Product, error)
+	List(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
 	Get(ctx context.Context, id string) (Product, error)
 	Create(ctx context.Context, input CreateProductInput) (Product, error)
 	Update(ctx context.Context, id string, input UpdateProductInput) (Product, error)

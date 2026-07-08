@@ -72,21 +72,32 @@ func TestStoreListProducts(t *testing.T) {
 		t.Fatalf("expected no error creating keyboard, got %v", err)
 	}
 
-	items, err := store.List(ctx)
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+	})
 	if err != nil {
 		t.Fatalf("expected no error listing products, got %v", err)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("expected 2 products, got %d", len(items))
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(result.Items))
 	}
 
-	if items[0].ID != "1" {
-		t.Fatalf("expected first product ID %q, got %q", "1", items[0].ID)
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
 	}
 
-	if items[1].ID != "2" {
-		t.Fatalf("expected second product ID %q, got %q", "2", items[1].ID)
+	if result.TotalPages != 1 {
+		t.Fatalf("expected total pages %d, got %d", 1, result.TotalPages)
+	}
+
+	if result.Items[0].ID != "1" {
+		t.Fatalf("expected first product ID %q, got %q", "1", result.Items[0].ID)
+	}
+
+	if result.Items[1].ID != "2" {
+		t.Fatalf("expected second product ID %q, got %q", "2", result.Items[1].ID)
 	}
 }
 
@@ -227,7 +238,10 @@ func TestStoreContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := store.List(ctx)
+	_, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled on List, got %v", err)
 	}
@@ -287,18 +301,21 @@ func TestStoreConcurrentCreates(t *testing.T) {
 
 	wg.Wait()
 
-	items, err := store.List(ctx)
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: totalProducts,
+	})
 	if err != nil {
 		t.Fatalf("expected no error listing products, got %v", err)
 	}
 
-	if len(items) != totalProducts {
-		t.Fatalf("expected %d products, got %d", totalProducts, len(items))
+	if len(result.Items) != totalProducts {
+		t.Fatalf("expected %d products, got %d", totalProducts, len(result.Items))
 	}
 
 	seenIDs := make(map[string]bool, totalProducts)
 
-	for _, item := range items {
+	for _, item := range result.Items {
 		if item.ID == "" {
 			t.Fatal("expected product ID to not be empty")
 		}
@@ -308,5 +325,49 @@ func TestStoreConcurrentCreates(t *testing.T) {
 		}
 
 		seenIDs[item.ID] = true
+	}
+}
+
+func TestStoreListProductsPagination(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	for i := 1; i <= 5; i++ {
+		_, err := store.Create(ctx, CreateProductInput{
+			Name:        fmt.Sprintf("Product %d", i),
+			Description: "Producto paginado",
+			Price:       float64(i),
+		})
+		if err != nil {
+			t.Fatalf("expected no error creating product %d, got %v", i, err)
+		}
+	}
+
+	result, err := store.List(ctx, ListProductsInput{
+		Page:     2,
+		PageSize: 2,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products on page 2, got %d", len(result.Items))
+	}
+
+	if result.Items[0].ID != "3" {
+		t.Fatalf("expected first item on page 2 to have ID %q, got %q", "3", result.Items[0].ID)
+	}
+
+	if result.Items[1].ID != "4" {
+		t.Fatalf("expected second item on page 2 to have ID %q, got %q", "4", result.Items[1].ID)
+	}
+
+	if result.Total != 5 {
+		t.Fatalf("expected total %d, got %d", 5, result.Total)
+	}
+
+	if result.TotalPages != 3 {
+		t.Fatalf("expected total pages %d, got %d", 3, result.TotalPages)
 	}
 }

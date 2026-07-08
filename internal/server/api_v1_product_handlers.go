@@ -45,18 +45,35 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
-	items, err := h.productService.List(r.Context())
+	input, fields := readProductPaginationQuery(r)
+	if len(fields) > 0 {
+		writeValidationError(w, r, fields)
+		return
+	}
+
+	result, err := h.productService.List(r.Context(), input)
 	if err != nil {
+		if validationErr, ok := err.(product.ValidationError); ok {
+			writeProductValidationError(w, r, validationErr)
+			return
+		}
+
 		h.logger.Error("error listing products", "error", err, "request_id", getRequestID(r.Context()))
 		writeInternalError(w, r)
 		return
 	}
 
 	response := ProductListResponse{
-		Data: make([]ProductResponse, 0, len(items)),
+		Data: make([]ProductResponse, 0, len(result.Items)),
+		Meta: PaginationMeta{
+			Page:       result.Page,
+			PageSize:   result.PageSize,
+			Total:      result.Total,
+			TotalPages: result.TotalPages,
+		},
 	}
 
-	for _, item := range items {
+	for _, item := range result.Items {
 		response.Data = append(response.Data, toProductResponse(item))
 	}
 

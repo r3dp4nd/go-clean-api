@@ -22,3 +22,16 @@ type UpdateProductInput struct {
 	Description string
 	Price       float64
 }
+
+type ListProductsInput struct {
+	Page     int
+	PageSize int
+}
+
+type ListProductsResult struct {
+	Items      []Product
+	Total      int
+	Page       int
+	PageSize   int
+	TotalPages int
+}

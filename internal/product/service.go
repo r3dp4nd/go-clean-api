@@ -6,6 +6,9 @@ import (
 )
 
 const (
+	DefaultPage                 = 1
+	DefaultPageSize             = 10
+	MaxPageSize                 = 100
 	maxProductNameLength        = 120
 	maxProductDescriptionLength = 500
 )
@@ -20,8 +23,13 @@ func NewService(repository Repository) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context) ([]Product, error) {
-	return s.repository.List(ctx)
+func (s *Service) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+	normalizedInput, err := normalizeListProductsInput(input)
+	if err != nil {
+		return ListProductsResult{}, err
+	}
+
+	return s.repository.List(ctx, normalizedInput)
 }
 
 func (s *Service) Get(ctx context.Context, id string) (Product, error) {
@@ -79,6 +87,47 @@ type ValidationError struct {
 
 func (e ValidationError) Error() string {
 	return "validation failed"
+}
+
+func normalizeListProductsInput(input ListProductsInput) (ListProductsInput, error) {
+	if input.Page == 0 {
+		input.Page = DefaultPage
+	}
+
+	if input.PageSize == 0 {
+		input.PageSize = DefaultPageSize
+	}
+
+	var fields []FieldViolation
+
+	if input.Page < 1 {
+		fields = append(fields, FieldViolation{
+			Field:   "page",
+			Message: "page must be greater than or equal to 1",
+		})
+	}
+
+	if input.PageSize < 1 {
+		fields = append(fields, FieldViolation{
+			Field:   "page_size",
+			Message: "page_size must be greater than or equal to 1",
+		})
+	}
+
+	if input.PageSize > MaxPageSize {
+		fields = append(fields, FieldViolation{
+			Field:   "page_size",
+			Message: "page_size must be less than or equal to 100",
+		})
+	}
+
+	if len(fields) > 0 {
+		return ListProductsInput{}, ValidationError{
+			Fields: fields,
+		}
+	}
+
+	return input, nil
 }
 
 func validateProductInput(name string, description string, price float64) error {

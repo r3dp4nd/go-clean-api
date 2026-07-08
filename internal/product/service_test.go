@@ -11,7 +11,7 @@ import (
 var errRepositoryFailure = errors.New("repository failure")
 
 type fakeRepository struct {
-	listFn   func(ctx context.Context) ([]Product, error)
+	listFn   func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
 	getFn    func(ctx context.Context, id string) (Product, error)
 	createFn func(ctx context.Context, input CreateProductInput) (Product, error)
 	updateFn func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
@@ -24,14 +24,14 @@ type fakeRepository struct {
 	deleteCalls int
 }
 
-func (f *fakeRepository) List(ctx context.Context) ([]Product, error) {
+func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
 	f.listCalls++
 
 	if f.listFn != nil {
-		return f.listFn(ctx)
+		return f.listFn(ctx, input)
 	}
 
-	return nil, nil
+	return ListProductsResult{}, nil
 }
 
 func (f *fakeRepository) Get(ctx context.Context, id string) (Product, error) {
@@ -75,28 +75,45 @@ func (f *fakeRepository) Delete(ctx context.Context, id string) error {
 }
 
 func TestServiceListProducts(t *testing.T) {
-	expectedProducts := []Product{
-		{
-			ID:    "1",
-			Name:  "Laptop",
-			Price: 3500,
+	expectedResult := ListProductsResult{
+		Items: []Product{
+			{
+				ID:    "1",
+				Name:  "Laptop",
+				Price: 3500,
+			},
+			{
+				ID:    "2",
+				Name:  "Mouse",
+				Price: 120,
+			},
 		},
-		{
-			ID:    "2",
-			Name:  "Mouse",
-			Price: 120,
-		},
+		Total:      2,
+		Page:       1,
+		PageSize:   10,
+		TotalPages: 1,
 	}
 
 	repository := &fakeRepository{
-		listFn: func(ctx context.Context) ([]Product, error) {
-			return expectedProducts, nil
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			if input.Page != 1 {
+				t.Fatalf("expected page %d, got %d", 1, input.Page)
+			}
+
+			if input.PageSize != 10 {
+				t.Fatalf("expected page size %d, got %d", 10, input.PageSize)
+			}
+
+			return expectedResult, nil
 		},
 	}
 
 	service := NewService(repository)
 
-	items, err := service.List(context.Background())
+	result, err := service.List(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -105,25 +122,28 @@ func TestServiceListProducts(t *testing.T) {
 		t.Fatalf("expected List to be called once, got %d", repository.listCalls)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("expected 2 products, got %d", len(items))
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(result.Items))
 	}
 
-	if items[0].ID != "1" {
-		t.Fatalf("expected first product ID %q, got %q", "1", items[0].ID)
+	if result.Total != 2 {
+		t.Fatalf("expected total %d, got %d", 2, result.Total)
 	}
 }
 
 func TestServiceListProductsRepositoryError(t *testing.T) {
 	repository := &fakeRepository{
-		listFn: func(ctx context.Context) ([]Product, error) {
-			return nil, errRepositoryFailure
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			return ListProductsResult{}, errRepositoryFailure
 		},
 	}
 
 	service := NewService(repository)
 
-	_, err := service.List(context.Background())
+	_, err := service.List(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+	})
 	if !errors.Is(err, errRepositoryFailure) {
 		t.Fatalf("expected repository error, got %v", err)
 	}
@@ -457,5 +477,37 @@ func TestServiceCreateProductMaxLengthValidation(t *testing.T) {
 
 	if len(validationErr.Fields) != 2 {
 		t.Fatalf("expected 2 field violations, got %d", len(validationErr.Fields))
+	}
+}
+
+func TestServiceListProductsValidationErrorDoesNotCallRepository(t *testing.T) {
+	repository := &fakeRepository{
+		listFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			t.Fatal("repository List should not be called when validation fails")
+			return ListProductsResult{}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.List(context.Background(), ListProductsInput{
+		Page:     -1,
+		PageSize: MaxPageSize + 1,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+
+	if repository.listCalls != 0 {
+		t.Fatalf("expected List not to be called, got %d calls", repository.listCalls)
+	}
+
+	if len(validationErr.Fields) != 2 {
+		t.Fatalf("expected 2 validation fields, got %d", len(validationErr.Fields))
 	}
 }

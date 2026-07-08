@@ -68,6 +68,18 @@ func TestProductsCRUD(t *testing.T) {
 		t.Fatalf("expected 1 product, got %d", len(listResponse.Data))
 	}
 
+	if listResponse.Meta.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, listResponse.Meta.Total)
+	}
+
+	if listResponse.Meta.Page != 1 {
+		t.Fatalf("expected page %d, got %d", 1, listResponse.Meta.Page)
+	}
+
+	if listResponse.Meta.PageSize != 10 {
+		t.Fatalf("expected page size %d, got %d", 10, listResponse.Meta.PageSize)
+	}
+
 	getRequest := httptest.NewRequest(http.MethodGet, "/api/v1/products/"+createdProduct.ID, nil)
 	getRecorder := httptest.NewRecorder()
 
@@ -325,5 +337,68 @@ func TestGetProductWithNestedPathReturnsNotFound(t *testing.T) {
 
 	if response.Error.Code != errorCodeNotFound {
 		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, response.Error.Code)
+	}
+}
+
+func TestListProductsPagination(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	for i := 1; i <= 3; i++ {
+		body := []byte(`{
+			"name": "Product",
+			"description": "Producto de prueba",
+			"price": 100
+		}`)
+
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/products",
+			bytes.NewReader(body),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		responseRecorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, responseRecorder.Code)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products?page=2&page_size=2", nil)
+	request.Header.Set(requestIDHeader, "pagination-test")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response ProductListResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 product on page 2, got %d", len(response.Data))
+	}
+
+	if response.Meta.Page != 2 {
+		t.Fatalf("expected page %d, got %d", 2, response.Meta.Page)
+	}
+
+	if response.Meta.PageSize != 2 {
+		t.Fatalf("expected page size %d, got %d", 2, response.Meta.PageSize)
+	}
+
+	if response.Meta.Total != 3 {
+		t.Fatalf("expected total %d, got %d", 3, response.Meta.Total)
+	}
+
+	if response.Meta.TotalPages != 2 {
+		t.Fatalf("expected total pages %d, got %d", 2, response.Meta.TotalPages)
 	}
 }

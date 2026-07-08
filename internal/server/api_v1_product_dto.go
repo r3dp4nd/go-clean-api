@@ -13,6 +13,14 @@ type ProductResponse struct {
 
 type ProductListResponse struct {
 	Data []ProductResponse `json:"data"`
+	Meta PaginationMeta    `json:"meta"`
+}
+
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"page_size"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
 }
 
 type CreateProductRequest struct {

@@ -242,3 +242,28 @@ Archivo principal:
 ```text
 internal/server/recovery_middleware.go
 ```
+
+## CORS
+
+La API usa un middleware CORS configurable por variables de entorno.
+
+Variables disponibles:
+
+```env
+CORS_ENABLED=true
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4200
+CORS_ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
+CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Request-ID
+CORS_MAX_AGE_SECONDS=600
+```
+
+## Paginación de Products
+
+El endpoint `GET /api/v1/products` soporta paginación por query params.
+
+### Parámetros
+
+```text
+page      # número de página, mínimo 1
+page_size # tamaño de página, mínimo 1, máximo 100
+```
