@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
@@ -24,7 +23,7 @@ func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request) {
-	id, ok := productIDFromPath(r.URL.Path)
+	id, ok := pathParamAfterPrefix(r.URL.Path, apiV1ProductsPrefix)
 	if !ok {
 		writeNotFound(w, r)
 		return
@@ -152,21 +151,6 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id strin
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func productIDFromPath(path string) (string, bool) {
-	id := strings.TrimPrefix(path, apiV1ProductsPrefix)
-	id = strings.TrimSpace(id)
-
-	if id == "" {
-		return "", false
-	}
-
-	if strings.Contains(id, "/") {
-		return "", false
-	}
-
-	return id, true
 }
 
 func writeProductValidationError(w http.ResponseWriter, r *http.Request, validationErr product.ValidationError) {

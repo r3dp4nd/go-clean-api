@@ -222,3 +222,13 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 }
 ```
+
+## Parsing de rutas REST
+
+La API usa helpers internos para extraer parámetros desde rutas REST.
+
+Archivo principal:
+
+```text
+internal/server/path_params.go
+```

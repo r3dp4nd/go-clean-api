@@ -275,3 +275,55 @@ func TestProductsMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected Allow header %q, got %q", "GET, POST", got)
 	}
 }
+
+func TestGetProductWithEmptyIDReturnsNotFound(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products/", nil)
+	request.Header.Set(requestIDHeader, "empty-product-id")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, responseRecorder.Code)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, response.Error.Code)
+	}
+
+	if response.Error.RequestID != "empty-product-id" {
+		t.Fatalf("expected request id %q, got %q", "empty-product-id", response.Error.RequestID)
+	}
+}
+
+func TestGetProductWithNestedPathReturnsNotFound(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/products/1/details", nil)
+	request.Header.Set(requestIDHeader, "nested-product-path")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, responseRecorder.Code)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, response.Error.Code)
+	}
+}
