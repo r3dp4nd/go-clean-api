@@ -474,3 +474,13 @@ Cuando se elimina un producto:
 ```text
 DELETE /api/v1/products/{id}
 ```
+
+## Restaurar productos eliminados
+
+La API permite restaurar productos eliminados mediante soft delete.
+
+Endpoint:
+
+```text
+POST /api/v1/products/{id}/restore
+```

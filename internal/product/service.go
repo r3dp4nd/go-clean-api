@@ -161,6 +161,10 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.repository.Delete(ctx, strings.TrimSpace(id))
 }
 
+func (s *Service) Restore(ctx context.Context, id string) (Product, error) {
+	return s.repository.Restore(ctx, strings.TrimSpace(id))
+}
+
 type FieldViolation struct {
 	Field   string
 	Message string

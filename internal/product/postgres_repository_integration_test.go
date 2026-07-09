@@ -494,3 +494,76 @@ func TestIntegrationPostgresProductRepositoryAllowsReusingSKUAfterSoftDelete(t *
 		t.Fatalf("expected sku %q, got %q", "PG-REUSABLE-SKU", second.SKU)
 	}
 }
+
+func TestIntegrationPostgresProductRepositoryRestore(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	created, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-RESTORE-001",
+		Name:        "PG Restore",
+		Description: "Producto para restore en Postgres",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	restored, err := repository.Restore(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected no error restoring product, got %v", err)
+	}
+
+	if restored.ID != created.ID {
+		t.Fatalf("expected restored ID %q, got %q", created.ID, restored.ID)
+	}
+
+	found, err := repository.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected no error getting restored product, got %v", err)
+	}
+
+	if found.ID != created.ID {
+		t.Fatalf("expected found ID %q, got %q", created.ID, found.ID)
+	}
+}
+
+func TestIntegrationPostgresProductRepositoryRestoreDuplicateSKU(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	first, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-RESTORE-CONFLICT",
+		Name:        "First Product",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, first.ID); err != nil {
+		t.Fatalf("expected no error soft deleting first product, got %v", err)
+	}
+
+	_, err = repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-RESTORE-CONFLICT",
+		Name:        "Second Product",
+		Description: "Segundo producto activo",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating second product, got %v", err)
+	}
+
+	_, err = repository.Restore(ctx, first.ID)
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}

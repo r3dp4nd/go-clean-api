@@ -956,3 +956,78 @@ func TestStoreCreateProductAllowsReusingSKUAfterSoftDelete(t *testing.T) {
 		t.Fatalf("expected reused sku, got %q", second.SKU)
 	}
 }
+
+func TestStoreRestoreProduct(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "STORE-RESTORE-001",
+		Name:        "Store Restore",
+		Description: "Producto para restaurar",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	if err := store.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	restored, err := store.Restore(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected no error restoring product, got %v", err)
+	}
+
+	if restored.ID != created.ID {
+		t.Fatalf("expected restored ID %q, got %q", created.ID, restored.ID)
+	}
+
+	if restored.DeletedAt != nil {
+		t.Fatal("expected restored product DeletedAt to be nil")
+	}
+
+	found, err := store.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected no error getting restored product, got %v", err)
+	}
+
+	if found.ID != created.ID {
+		t.Fatalf("expected found ID %q, got %q", created.ID, found.ID)
+	}
+}
+
+func TestStoreRestoreProductDuplicateSKU(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	first, err := store.Create(ctx, CreateProductInput{
+		SKU:         "STORE-RESTORE-CONFLICT",
+		Name:        "First Product",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	if err := store.Delete(ctx, first.ID); err != nil {
+		t.Fatalf("expected no error soft deleting first product, got %v", err)
+	}
+
+	_, err = store.Create(ctx, CreateProductInput{
+		SKU:         "store-restore-conflict",
+		Name:        "Second Product",
+		Description: "Segundo producto activo",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating second product, got %v", err)
+	}
+
+	_, err = store.Restore(ctx, first.ID)
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}

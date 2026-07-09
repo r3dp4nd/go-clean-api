@@ -2044,3 +2044,190 @@ func TestCreateProductAllowsReusingSKUAfterSoftDelete(t *testing.T) {
 		t.Fatalf("expected normalized sku %q, got %q", "HTTP-REUSABLE-SKU", secondProduct.SKU)
 	}
 }
+
+func TestRestoreProduct(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-RESTORE-001",
+		"name": "HTTP Restore",
+		"description": "Producto para probar restore",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	restoreRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/"+createdProduct.ID+"/restore",
+		nil,
+	)
+	restoreRequest.Header.Set(requestIDHeader, "restore-product")
+
+	restoreRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(restoreRecorder, restoreRequest)
+
+	if restoreRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, restoreRecorder.Code, restoreRecorder.Body.String())
+	}
+
+	restoredProduct := decodeProductResourceResponse(t, restoreRecorder)
+
+	if restoredProduct.ID != createdProduct.ID {
+		t.Fatalf("expected restored ID %q, got %q", createdProduct.ID, restoredProduct.ID)
+	}
+
+	if restoredProduct.SKU != "HTTP-RESTORE-001" {
+		t.Fatalf("expected restored SKU %q, got %q", "HTTP-RESTORE-001", restoredProduct.SKU)
+	}
+
+	getRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+
+	getRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(getRecorder, getRequest)
+
+	if getRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d after restore, got %d. body: %s", http.StatusOK, getRecorder.Code, getRecorder.Body.String())
+	}
+}
+
+func TestRestoreProductDuplicateSKUReturnsConflict(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	firstBody := []byte(`{
+		"sku": "HTTP-RESTORE-CONFLICT",
+		"name": "First Product",
+		"description": "Primer producto",
+		"price": 100
+	}`)
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(firstBody),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	if firstRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, firstRecorder.Code, firstRecorder.Body.String())
+	}
+
+	firstProduct := decodeProductResourceResponse(t, firstRecorder)
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+firstProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	secondBody := []byte(`{
+		"sku": "HTTP-RESTORE-CONFLICT",
+		"name": "Second Product",
+		"description": "Segundo producto activo",
+		"price": 200
+	}`)
+
+	secondRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(secondBody),
+	)
+	secondRequest.Header.Set("Content-Type", "application/json")
+
+	secondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if secondRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, secondRecorder.Code, secondRecorder.Body.String())
+	}
+
+	restoreRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/"+firstProduct.ID+"/restore",
+		nil,
+	)
+	restoreRequest.Header.Set(requestIDHeader, "restore-duplicate-sku")
+
+	restoreRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(restoreRecorder, restoreRequest)
+
+	if restoreRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusConflict, restoreRecorder.Code, restoreRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(restoreRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeConflict {
+		t.Fatalf("expected error code %q, got %q", errorCodeConflict, response.Error.Code)
+	}
+
+	if response.Error.Message != "product sku already exists" {
+		t.Fatalf("expected message %q, got %q", "product sku already exists", response.Error.Message)
+	}
+}
+
+func TestRestoreProductMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/123/restore",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "restore-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodPost {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodPost, got)
+	}
+}

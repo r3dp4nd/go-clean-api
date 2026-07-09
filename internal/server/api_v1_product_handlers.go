@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	apiV1ProductsPrefix    = "/api/v1/products/"
-	apiV1ProductsSKUPrefix = "/api/v1/products/sku/"
+	apiV1ProductsPrefix       = "/api/v1/products/"
+	apiV1ProductsSKUPrefix    = "/api/v1/products/sku/"
+	apiV1ProductRestoreSuffix = "/restore"
 )
 
 func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
@@ -28,11 +29,37 @@ func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathParamAfterPrefix(r.URL.Path, apiV1ProductsPrefix)
-	if !ok {
+	pathValue := strings.TrimPrefix(r.URL.Path, apiV1ProductsPrefix)
+
+	if pathValue == "" {
 		writeNotFound(w, r)
 		return
 	}
+
+	if strings.HasSuffix(pathValue, apiV1ProductRestoreSuffix) {
+		id := strings.TrimSuffix(pathValue, apiV1ProductRestoreSuffix)
+		id = strings.TrimSuffix(id, "/")
+
+		if id == "" || strings.Contains(id, "/") {
+			writeNotFound(w, r)
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, r, http.MethodPost)
+			return
+		}
+
+		h.restoreProduct(w, r, id)
+		return
+	}
+
+	if strings.Contains(pathValue, "/") {
+		writeNotFound(w, r)
+		return
+	}
+
+	id := pathValue
 
 	switch r.Method {
 	case http.MethodGet:
@@ -48,7 +75,11 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 		h.deleteProduct(w, r, id)
 
 	default:
-		writeMethodNotAllowed(w, r, "GET, PUT, PATCH, DELETE")
+		writeMethodNotAllowed(
+			w,
+			r,
+			"GET, PUT, PATCH, DELETE",
+		)
 	}
 }
 
@@ -321,6 +352,33 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id strin
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request, id string) {
+	item, err := h.productService.Restore(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
+			return
+		}
+
+		if errors.Is(err, product.ErrSKUAlreadyExists) {
+			writeError(
+				w,
+				r,
+				http.StatusConflict,
+				errorCodeConflict,
+				"product sku already exists",
+			)
+			return
+		}
+
+		h.logger.Error("error restoring product", "error", err, "request_id", getRequestID(r.Context()))
+		writeInternalError(w, r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
 }
 
 func writeProductValidationError(w http.ResponseWriter, r *http.Request, validationErr product.ValidationError) {

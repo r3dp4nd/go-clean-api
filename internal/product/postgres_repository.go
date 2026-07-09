@@ -257,6 +257,59 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *PostgresRepository) Restore(ctx context.Context, id string) (Product, error) {
+	const query = `
+		UPDATE products
+		SET
+			deleted_at = NULL,
+			updated_at = NOW()
+		WHERE id = $1::uuid
+		  AND deleted_at IS NOT NULL
+		RETURNING
+			id::text,
+			sku,
+			name,
+			description,
+			price::float8,
+			created_at,
+			updated_at
+	`
+
+	var item Product
+
+	err := r.pool.QueryRow(ctx, query, strings.TrimSpace(id)).Scan(
+		&item.ID,
+		&item.SKU,
+		&item.Name,
+		&item.Description,
+		&item.Price,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			activeProduct, getErr := r.Get(ctx, id)
+			if getErr == nil {
+				return activeProduct, nil
+			}
+
+			if errors.Is(getErr, ErrNotFound) {
+				return Product{}, ErrNotFound
+			}
+
+			return Product{}, fmt.Errorf("get product while restoring: %w", getErr)
+		}
+
+		if isProductSKUUniqueViolation(err) {
+			return Product{}, ErrSKUAlreadyExists
+		}
+
+		return Product{}, fmt.Errorf("restore product: %w", err)
+	}
+
+	return item, nil
+}
+
 func (r *PostgresRepository) countProducts(ctx context.Context, input ListProductsInput) (int, error) {
 	query := `
 		SELECT COUNT(*)

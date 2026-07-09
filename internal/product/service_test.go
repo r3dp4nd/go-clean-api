@@ -17,6 +17,7 @@ type fakeRepository struct {
 	createFn   func(ctx context.Context, input CreateProductInput) (Product, error)
 	updateFn   func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
 	deleteFn   func(ctx context.Context, id string) error
+	restoreFn  func(ctx context.Context, id string) (Product, error)
 
 	listCalls     int
 	getCalls      int
@@ -24,6 +25,7 @@ type fakeRepository struct {
 	createCalls   int
 	updateCalls   int
 	deleteCalls   int
+	restoreCalls  int
 }
 
 func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
@@ -84,6 +86,16 @@ func (f *fakeRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (f *fakeRepository) Restore(ctx context.Context, id string) (Product, error) {
+	f.restoreCalls++
+
+	if f.restoreFn != nil {
+		return f.restoreFn(ctx, id)
+	}
+
+	return Product{}, nil
 }
 
 func TestServiceListProducts(t *testing.T) {
@@ -1249,6 +1261,77 @@ func TestServicePatchProductDuplicateSKU(t *testing.T) {
 	_, err := service.Patch(context.Background(), "123", PatchProductInput{
 		SKU: &newSKU,
 	})
+	if !errors.Is(err, ErrSKUAlreadyExists) {
+		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}
+
+func TestServiceRestoreProduct(t *testing.T) {
+	now := time.Now().UTC()
+
+	repository := &fakeRepository{
+		restoreFn: func(ctx context.Context, id string) (Product, error) {
+			if id != "123" {
+				t.Fatalf("expected trimmed id %q, got %q", "123", id)
+			}
+
+			return Product{
+				ID:          id,
+				SKU:         "RESTORE-001",
+				Name:        "Restored Product",
+				Description: "Producto restaurado",
+				Price:       100,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	item, err := service.Restore(context.Background(), "  123  ")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.restoreCalls != 1 {
+		t.Fatalf("expected Restore to be called once, got %d", repository.restoreCalls)
+	}
+
+	if item.ID != "123" {
+		t.Fatalf("expected ID %q, got %q", "123", item.ID)
+	}
+
+	if item.SKU != "RESTORE-001" {
+		t.Fatalf("expected SKU %q, got %q", "RESTORE-001", item.SKU)
+	}
+}
+
+func TestServiceRestoreProductNotFound(t *testing.T) {
+	repository := &fakeRepository{
+		restoreFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{}, ErrNotFound
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Restore(context.Background(), "999")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestServiceRestoreProductDuplicateSKU(t *testing.T) {
+	repository := &fakeRepository{
+		restoreFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{}, ErrSKUAlreadyExists
+		},
+	}
+
+	service := NewService(repository)
+
+	_, err := service.Restore(context.Background(), "123")
 	if !errors.Is(err, ErrSKUAlreadyExists) {
 		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
 	}

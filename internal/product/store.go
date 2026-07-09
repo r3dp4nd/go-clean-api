@@ -251,6 +251,43 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *Store) Restore(ctx context.Context, id string) (Product, error) {
+	if err := ctx.Err(); err != nil {
+		return Product{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	trimmedID := strings.TrimSpace(id)
+
+	item, ok := s.products[trimmedID]
+	if !ok {
+		return Product{}, ErrNotFound
+	}
+
+	if item.DeletedAt == nil {
+		return item, nil
+	}
+
+	for _, existingProduct := range s.products {
+		if existingProduct.ID != trimmedID &&
+			existingProduct.DeletedAt == nil &&
+			strings.EqualFold(existingProduct.SKU, item.SKU) {
+			return Product{}, ErrSKUAlreadyExists
+		}
+	}
+
+	now := time.Now().UTC()
+
+	item.DeletedAt = nil
+	item.UpdatedAt = now
+
+	s.products[trimmedID] = item
+
+	return item, nil
+}
+
 func calculateTotalPages(total int, pageSize int) int {
 	if total == 0 {
 		return 0

@@ -9,4 +9,5 @@ type Repository interface {
 	Create(ctx context.Context, input CreateProductInput) (Product, error)
 	Update(ctx context.Context, id string, input UpdateProductInput) (Product, error)
 	Delete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) (Product, error)
 }
