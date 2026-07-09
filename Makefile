@@ -20,7 +20,7 @@ LOG_FORMAT?=json
 CORS_ENABLED?=true
 CORS_ALLOWED_ORIGINS?=http://localhost:3000,http://localhost:5173,http://localhost:4200
 CORS_ALLOWED_METHODS?=GET,POST,PUT,DELETE,OPTIONS
-CORS_ALLOWED_HEADERS?=Content-Type,Authorization,X-Request-ID
+CORS_ALLOWED_HEADERS?=Content-Type,Authorization,X-Request-ID,X-Actor
 CORS_MAX_AGE_SECONDS?=600
 
 POSTGRES_PORT?=5432

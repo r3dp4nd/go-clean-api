@@ -1698,3 +1698,54 @@ func TestServiceHardDeleteProductRecordsAuditEvent(t *testing.T) {
 		t.Fatalf("expected event type %q, got %q", AuditEventProductHardDeleted, auditor.events[0].Type)
 	}
 }
+
+func TestServiceCreateProductRecordsAuditMetadata(t *testing.T) {
+	now := time.Now().UTC()
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		createFn: func(ctx context.Context, input CreateProductInput) (Product, error) {
+			return Product{
+				ID:          "1",
+				SKU:         input.SKU,
+				Name:        input.Name,
+				Description: input.Description,
+				Price:       input.Price,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	ctx := audit.WithMetadata(context.Background(), audit.Metadata{
+		RequestID: "unit-test-request-id",
+		Actor:     "unit-test-actor",
+	})
+
+	_, err := service.Create(ctx, CreateProductInput{
+		SKU:         "AUDIT-METADATA-001",
+		Name:        "Audit Metadata",
+		Description: "Producto con metadata",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	event := auditor.events[0]
+
+	if event.Payload["request_id"] != "unit-test-request-id" {
+		t.Fatalf("expected request_id %q, got %v", "unit-test-request-id", event.Payload["request_id"])
+	}
+
+	if event.Payload["actor"] != "unit-test-actor" {
+		t.Fatalf("expected actor %q, got %v", "unit-test-actor", event.Payload["actor"])
+	}
+}

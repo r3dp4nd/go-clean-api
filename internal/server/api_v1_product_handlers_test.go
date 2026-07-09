@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
@@ -2739,5 +2740,175 @@ func TestListProductAuditEventsInvalidPagination(t *testing.T) {
 
 	if len(response.Error.Fields) != 2 {
 		t.Fatalf("expected 2 field errors, got %d", len(response.Error.Fields))
+	}
+}
+
+func TestProductAuditEventIncludesRequestIDAndActor(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-AUDIT-METADATA-001",
+		"name": "HTTP Audit Metadata",
+		"description": "Producto para metadata de auditoría",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set(requestIDHeader, "create-audit-metadata-request")
+	createRequest.Header.Set("X-Actor", "admin@example.com")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusCreated,
+			createRecorder.Code,
+			createRecorder.Body.String(),
+		)
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	auditRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID+"/audit-events",
+		nil,
+	)
+	auditRequest.Header.Set(requestIDHeader, "list-audit-metadata-request")
+
+	auditRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(auditRecorder, auditRequest)
+
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusOK,
+			auditRecorder.Code,
+			auditRecorder.Body.String(),
+		)
+	}
+
+	var response AuditEventListResponse
+	if err := json.NewDecoder(auditRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode audit event list response: %v", err)
+	}
+
+	if response.Meta.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, response.Meta.Total)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(response.Data))
+	}
+
+	event := response.Data[0]
+
+	if event.EventType != product.AuditEventProductCreated {
+		t.Fatalf(
+			"expected event type %q, got %q",
+			product.AuditEventProductCreated,
+			event.EventType,
+		)
+	}
+
+	if event.Payload["request_id"] != "create-audit-metadata-request" {
+		t.Fatalf(
+			"expected request_id %q, got %v",
+			"create-audit-metadata-request",
+			event.Payload["request_id"],
+		)
+	}
+
+	if event.Payload["actor"] != "admin@example.com" {
+		t.Fatalf(
+			"expected actor %q, got %v",
+			"admin@example.com",
+			event.Payload["actor"],
+		)
+	}
+}
+
+func TestProductAuditEventUsesDefaultActor(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-AUDIT-DEFAULT-ACTOR-001",
+		"name": "HTTP Audit Default Actor",
+		"description": "Producto para actor por defecto",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set(requestIDHeader, "default-actor-request")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusCreated,
+			createRecorder.Code,
+			createRecorder.Body.String(),
+		)
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	auditRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID+"/audit-events",
+		nil,
+	)
+
+	auditRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(auditRecorder, auditRequest)
+
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusOK,
+			auditRecorder.Code,
+			auditRecorder.Body.String(),
+		)
+	}
+
+	var response AuditEventListResponse
+	if err := json.NewDecoder(auditRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode audit event list response: %v", err)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(response.Data))
+	}
+
+	event := response.Data[0]
+
+	if event.Payload["request_id"] != "default-actor-request" {
+		t.Fatalf(
+			"expected request_id %q, got %v",
+			"default-actor-request",
+			event.Payload["request_id"],
+		)
+	}
+
+	if event.Payload["actor"] != audit.DefaultActor {
+		t.Fatalf(
+			"expected actor %q, got %v",
+			audit.DefaultActor,
+			event.Payload["actor"],
+		)
 	}
 }

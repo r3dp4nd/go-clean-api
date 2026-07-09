@@ -273,6 +273,16 @@ func (s *Service) recordAuditEvent(
 	payload["name"] = item.Name
 	payload["price"] = item.Price
 
+	if metadata, ok := audit.MetadataFromContext(ctx); ok {
+		if metadata.RequestID != "" {
+			payload["request_id"] = metadata.RequestID
+		}
+
+		payload["actor"] = metadata.Actor
+	} else {
+		payload["actor"] = audit.DefaultActor
+	}
+
 	_ = s.auditor.Record(ctx, audit.Event{
 		Type:          eventType,
 		AggregateType: AuditAggregateProduct,

@@ -286,7 +286,9 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.productService.Create(r.Context(), product.CreateProductInput{
+	ctx := auditContextFromRequest(r)
+
+	item, err := h.productService.Create(ctx, product.CreateProductInput{
 		SKU:         request.SKU,
 		Name:        request.Name,
 		Description: request.Description,
@@ -357,7 +359,9 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 
-	item, err := h.productService.Update(r.Context(), id, product.UpdateProductInput{
+	ctx := auditContextFromRequest(r)
+
+	item, err := h.productService.Update(ctx, id, product.UpdateProductInput{
 		SKU:         request.SKU,
 		Name:        request.Name,
 		Description: request.Description,
@@ -401,7 +405,9 @@ func (h *Handler) patchProduct(w http.ResponseWriter, r *http.Request, id string
 		return
 	}
 
-	item, err := h.productService.Patch(r.Context(), id, product.PatchProductInput{
+	ctx := auditContextFromRequest(r)
+
+	item, err := h.productService.Patch(ctx, id, product.PatchProductInput{
 		SKU:         request.SKU,
 		Name:        request.Name,
 		Description: request.Description,
@@ -438,7 +444,9 @@ func (h *Handler) patchProduct(w http.ResponseWriter, r *http.Request, id string
 }
 
 func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id string) {
-	if err := h.productService.Delete(r.Context(), id); err != nil {
+	ctx := auditContextFromRequest(r)
+
+	if err := h.productService.Delete(ctx, id); err != nil {
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
 			return
@@ -453,7 +461,9 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request, id strin
 }
 
 func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request, id string) {
-	item, err := h.productService.Restore(r.Context(), id)
+	ctx := auditContextFromRequest(r)
+
+	item, err := h.productService.Restore(ctx, id)
 	if err != nil {
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
@@ -480,7 +490,9 @@ func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request, id stri
 }
 
 func (h *Handler) hardDeleteProduct(w http.ResponseWriter, r *http.Request, id string) {
-	err := h.productService.HardDelete(r.Context(), id)
+	ctx := auditContextFromRequest(r)
+
+	err := h.productService.HardDelete(ctx, id)
 	if err != nil {
 		if errors.Is(err, product.ErrNotFound) {
 			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
