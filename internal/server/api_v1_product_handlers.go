@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,9 +11,10 @@ import (
 )
 
 const (
-	apiV1ProductsPrefix       = "/api/v1/products/"
-	apiV1ProductsSKUPrefix    = "/api/v1/products/sku/"
-	apiV1ProductRestoreSuffix = "/restore"
+	apiV1ProductsPrefix          = "/api/v1/products/"
+	apiV1ProductsSKUPrefix       = "/api/v1/products/sku/"
+	apiV1ProductRestoreSuffix    = "/restore"
+	apiV1ProductHardDeleteSuffix = "/hard"
 )
 
 func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +56,24 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if strings.HasSuffix(pathValue, apiV1ProductHardDeleteSuffix) {
+		id := strings.TrimSuffix(pathValue, apiV1ProductHardDeleteSuffix)
+		id = strings.TrimSuffix(id, "/")
+
+		if id == "" || strings.Contains(id, "/") {
+			writeNotFound(w, r)
+			return
+		}
+
+		if r.Method != http.MethodDelete {
+			writeMethodNotAllowed(w, r, http.MethodDelete)
+			return
+		}
+
+		h.hardDeleteProduct(w, r, id)
+		return
+	}
+
 	if strings.Contains(pathValue, "/") {
 		writeNotFound(w, r)
 		return
@@ -78,7 +98,12 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 		writeMethodNotAllowed(
 			w,
 			r,
-			"GET, PUT, PATCH, DELETE",
+			fmt.Sprintf("%s,%s,%s,%s",
+				http.MethodGet,
+				http.MethodPut,
+				http.MethodPatch,
+				http.MethodDelete,
+			),
 		)
 	}
 }
@@ -432,6 +457,38 @@ func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request, id stri
 	}
 
 	writeJSON(w, http.StatusOK, toProductResourceResponse(item))
+}
+
+func (h *Handler) hardDeleteProduct(w http.ResponseWriter, r *http.Request, id string) {
+	err := h.productService.HardDelete(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			writeError(w, r, http.StatusNotFound, errorCodeNotFound, "product not found")
+			return
+		}
+
+		if errors.Is(err, product.ErrProductMustBeDeletedFirst) {
+			writeError(
+				w,
+				r,
+				http.StatusConflict,
+				errorCodeConflict,
+				"product must be soft deleted before hard delete",
+			)
+			return
+		}
+
+		h.logger.Error(
+			"error hard deleting product",
+			"error", err,
+			"request_id", getRequestID(r.Context()),
+		)
+
+		writeInternalError(w, r)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeProductValidationError(w http.ResponseWriter, r *http.Request, validationErr product.ValidationError) {

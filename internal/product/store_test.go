@@ -1090,3 +1090,92 @@ func TestStoreListDeletedProducts(t *testing.T) {
 		t.Fatal("expected deleted_at to be set")
 	}
 }
+
+func TestStoreHardDeleteProduct(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "STORE-HARD-DELETE-001",
+		Name:        "Store Hard Delete",
+		Description: "Producto para hard delete",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	if err := store.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	if err := store.HardDelete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error hard deleting product, got %v", err)
+	}
+
+	store.mu.RLock()
+	_, ok := store.products[created.ID]
+	store.mu.RUnlock()
+
+	if ok {
+		t.Fatal("expected product to be physically removed after hard delete")
+	}
+
+	_, err = store.Get(ctx, created.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound after hard delete, got %v", err)
+	}
+
+	result, err := store.ListDeleted(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldID,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing deleted products, got %v", err)
+	}
+
+	if result.Total != 0 {
+		t.Fatalf("expected total deleted %d after hard delete, got %d", 0, result.Total)
+	}
+}
+
+func TestStoreHardDeleteActiveProductFails(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	created, err := store.Create(ctx, CreateProductInput{
+		SKU:         "STORE-HARD-ACTIVE-001",
+		Name:        "Active Product",
+		Description: "Producto activo",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	err = store.HardDelete(ctx, created.ID)
+	if !errors.Is(err, ErrProductMustBeDeletedFirst) {
+		t.Fatalf("expected ErrProductMustBeDeletedFirst, got %v", err)
+	}
+
+	found, err := store.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected active product to still exist, got %v", err)
+	}
+
+	if found.ID != created.ID {
+		t.Fatalf("expected product ID %q, got %q", created.ID, found.ID)
+	}
+}
+
+func TestStoreHardDeleteProductNotFound(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	err := store.HardDelete(ctx, "999")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}

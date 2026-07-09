@@ -11,4 +11,5 @@ type Repository interface {
 	Update(ctx context.Context, id string, input UpdateProductInput) (Product, error)
 	Delete(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) (Product, error)
+	HardDelete(ctx context.Context, id string) error
 }

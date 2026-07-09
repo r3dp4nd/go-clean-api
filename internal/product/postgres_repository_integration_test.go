@@ -623,3 +623,87 @@ func TestIntegrationPostgresProductRepositoryListDeleted(t *testing.T) {
 		t.Fatal("expected deleted_at to be set")
 	}
 }
+
+func TestIntegrationPostgresProductRepositoryHardDelete(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	created, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-HARD-DELETE-001",
+		Name:        "PG Hard Delete",
+		Description: "Producto para hard delete",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	if err := repository.HardDelete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error hard deleting product, got %v", err)
+	}
+
+	_, err = repository.Get(ctx, created.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound after hard delete, got %v", err)
+	}
+
+	result, err := repository.ListDeleted(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldID,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing deleted products, got %v", err)
+	}
+
+	if result.Total != 0 {
+		t.Fatalf("expected total deleted %d after hard delete, got %d", 0, result.Total)
+	}
+}
+
+func TestIntegrationPostgresProductRepositoryHardDeleteActiveProductFails(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	created, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-HARD-ACTIVE-001",
+		Name:        "PG Active Product",
+		Description: "Producto activo",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	err = repository.HardDelete(ctx, created.ID)
+	if !errors.Is(err, ErrProductMustBeDeletedFirst) {
+		t.Fatalf("expected ErrProductMustBeDeletedFirst, got %v", err)
+	}
+
+	found, err := repository.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("expected active product to still exist, got %v", err)
+	}
+
+	if found.ID != created.ID {
+		t.Fatalf("expected product ID %q, got %q", created.ID, found.ID)
+	}
+}
+
+func TestIntegrationPostgresProductRepositoryHardDeleteNotFound(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	err := repository.HardDelete(ctx, "00000000-0000-0000-0000-000000000000")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}

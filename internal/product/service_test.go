@@ -19,6 +19,7 @@ type fakeRepository struct {
 	updateFn      func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
 	deleteFn      func(ctx context.Context, id string) error
 	restoreFn     func(ctx context.Context, id string) (Product, error)
+	hardDeleteFn  func(ctx context.Context, id string) error
 
 	listCalls        int
 	listDeletedCalls int
@@ -28,6 +29,7 @@ type fakeRepository struct {
 	updateCalls      int
 	deleteCalls      int
 	restoreCalls     int
+	hardDeleteCalls  int
 }
 
 func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
@@ -108,6 +110,16 @@ func (f *fakeRepository) Restore(ctx context.Context, id string) (Product, error
 	}
 
 	return Product{}, nil
+}
+
+func (f *fakeRepository) HardDelete(ctx context.Context, id string) error {
+	f.hardDeleteCalls++
+
+	if f.hardDeleteFn != nil {
+		return f.hardDeleteFn(ctx, id)
+	}
+
+	return nil
 }
 
 func TestServiceListProducts(t *testing.T) {
@@ -1408,5 +1420,57 @@ func TestServiceListDeletedProducts(t *testing.T) {
 
 	if result.Items[0].DeletedAt == nil {
 		t.Fatal("expected deleted_at to be set")
+	}
+}
+
+func TestServiceHardDeleteProduct(t *testing.T) {
+	repository := &fakeRepository{
+		hardDeleteFn: func(ctx context.Context, id string) error {
+			if id != "123" {
+				t.Fatalf("expected trimmed id %q, got %q", "123", id)
+			}
+
+			return nil
+		},
+	}
+
+	service := NewService(repository)
+
+	if err := service.HardDelete(context.Background(), "  123  "); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.hardDeleteCalls != 1 {
+		t.Fatalf("expected HardDelete to be called once, got %d", repository.hardDeleteCalls)
+	}
+}
+
+func TestServiceHardDeleteProductNotFound(t *testing.T) {
+	repository := &fakeRepository{
+		hardDeleteFn: func(ctx context.Context, id string) error {
+			return ErrNotFound
+		},
+	}
+
+	service := NewService(repository)
+
+	err := service.HardDelete(context.Background(), "999")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestServiceHardDeleteProductMustBeSoftDeletedFirst(t *testing.T) {
+	repository := &fakeRepository{
+		hardDeleteFn: func(ctx context.Context, id string) error {
+			return ErrProductMustBeDeletedFirst
+		},
+	}
+
+	service := NewService(repository)
+
+	err := service.HardDelete(context.Background(), "123")
+	if !errors.Is(err, ErrProductMustBeDeletedFirst) {
+		t.Fatalf("expected ErrProductMustBeDeletedFirst, got %v", err)
 	}
 }

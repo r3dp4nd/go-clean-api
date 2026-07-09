@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	ErrNotFound         = errors.New("product not found")
-	ErrSKUAlreadyExists = errors.New("product sku already exists")
+	ErrNotFound                  = errors.New("product not found")
+	ErrSKUAlreadyExists          = errors.New("product sku already exists")
+	ErrProductMustBeDeletedFirst = errors.New("product must be soft deleted before hard delete")
 )
 
 type Store struct {
@@ -359,6 +360,30 @@ func (s *Store) Restore(ctx context.Context, id string) (Product, error) {
 	s.products[trimmedID] = item
 
 	return item, nil
+}
+
+func (s *Store) HardDelete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	trimmedID := strings.TrimSpace(id)
+
+	item, ok := s.products[trimmedID]
+	if !ok {
+		return ErrNotFound
+	}
+
+	if item.DeletedAt == nil {
+		return ErrProductMustBeDeletedFirst
+	}
+
+	delete(s.products, trimmedID)
+
+	return nil
 }
 
 func calculateTotalPages(total int, pageSize int) int {

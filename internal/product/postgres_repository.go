@@ -293,6 +293,37 @@ func (r *PostgresRepository) Restore(ctx context.Context, id string) (Product, e
 	return item, nil
 }
 
+func (r *PostgresRepository) HardDelete(ctx context.Context, id string) error {
+	const query = `
+		DELETE FROM products
+		WHERE id = $1::uuid
+		  AND deleted_at IS NOT NULL
+		RETURNING id
+	`
+
+	var deletedID string
+
+	err := r.pool.QueryRow(ctx, query, strings.TrimSpace(id)).Scan(&deletedID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			activeProduct, getErr := r.Get(ctx, id)
+			if getErr == nil && activeProduct.ID != "" {
+				return ErrProductMustBeDeletedFirst
+			}
+
+			if errors.Is(getErr, ErrNotFound) {
+				return ErrNotFound
+			}
+
+			return fmt.Errorf("get product while hard deleting: %w", getErr)
+		}
+
+		return fmt.Errorf("hard delete product: %w", err)
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) countProducts(
 	ctx context.Context,
 	input ListProductsInput,

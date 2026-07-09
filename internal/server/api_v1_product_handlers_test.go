@@ -2353,3 +2353,159 @@ func TestListDeletedProductsMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
 	}
 }
+
+func TestHardDeleteProduct(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-HARD-DELETE-001",
+		"name": "HTTP Hard Delete",
+		"description": "Producto para probar hard delete",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	hardDeleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID+"/hard",
+		nil,
+	)
+	hardDeleteRequest.Header.Set(requestIDHeader, "hard-delete-product")
+
+	hardDeleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(hardDeleteRecorder, hardDeleteRequest)
+
+	if hardDeleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, hardDeleteRecorder.Code, hardDeleteRecorder.Body.String())
+	}
+
+	listDeletedRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/deleted",
+		nil,
+	)
+
+	listDeletedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(listDeletedRecorder, listDeletedRequest)
+
+	if listDeletedRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, listDeletedRecorder.Code, listDeletedRecorder.Body.String())
+	}
+
+	var listDeletedResponse DeletedProductListResponse
+	if err := json.NewDecoder(listDeletedRecorder.Body).Decode(&listDeletedResponse); err != nil {
+		t.Fatalf("failed to decode deleted products response: %v", err)
+	}
+
+	if listDeletedResponse.Meta.Total != 0 {
+		t.Fatalf("expected total deleted %d after hard delete, got %d", 0, listDeletedResponse.Meta.Total)
+	}
+}
+
+func TestHardDeleteActiveProductReturnsConflict(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-HARD-ACTIVE-001",
+		"name": "HTTP Active Product",
+		"description": "Producto activo",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	hardDeleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID+"/hard",
+		nil,
+	)
+	hardDeleteRequest.Header.Set(requestIDHeader, "hard-delete-active-product")
+
+	hardDeleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(hardDeleteRecorder, hardDeleteRequest)
+
+	if hardDeleteRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusConflict, hardDeleteRecorder.Code, hardDeleteRecorder.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(hardDeleteRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeConflict {
+		t.Fatalf("expected error code %q, got %q", errorCodeConflict, response.Error.Code)
+	}
+
+	if response.Error.Message != "product must be soft deleted before hard delete" {
+		t.Fatalf(
+			"expected message %q, got %q",
+			"product must be soft deleted before hard delete",
+			response.Error.Message,
+		)
+	}
+}
+
+func TestHardDeleteProductMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/123/hard",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "hard-delete-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodDelete {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodDelete, got)
+	}
+}
