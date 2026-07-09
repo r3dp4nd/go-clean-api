@@ -37,7 +37,7 @@ MIGRATIONS_PATH?=db/migrations
 
 SEED_PRODUCTS_TRUNCATE=true
 
-.PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables seed-products
+.PHONY: help run build clean test test-v test-cover test-race test-integration test-all fmt vet tidy docker-build docker-run docker-stop docker-logs compose-build compose-up compose-up-d compose-down compose-down-v compose-logs compose-ps compose-db-logs compose-db-shell db-migrate-up db-migrate-down db-migrate-version db-migrate-force db-products db-tables db-audit-events seed-products
 
 help:
 	@echo "Comandos disponibles:"
@@ -70,6 +70,7 @@ help:
 	@echo "  make db-tables        - Lista tablas de PostgreSQL"
 	@echo "  make db-migrate-version - Muestra versión actual de migraciones"
 	@echo "  make db-migrate-force   - Fuerza una versión de migración. Uso: make db-migrate-force VERSION=1"
+	@echo "  make db-audit-events    - Muestra la uditoria de eventos PostgreSQL"
 	@echo "  make test-integration - Ejecuta tests de integración contra PostgreSQL"
 	@echo "  make test-all         - Ejecuta tests unitarios + integración"
 	@echo "  make seed-products     - Inserta productos de prueba en PostgreSQL"
@@ -254,6 +255,13 @@ db-tables:
 		-f $(COMPOSE_FILE) \
 		exec postgres psql -U $(DB_USER) -d $(DB_NAME) \
 		-c "\dt"
+
+db-audit-events:
+	docker compose \
+		-p $(COMPOSE_PROJECT_NAME) \
+		-f $(COMPOSE_FILE) \
+		exec postgres psql -U $(DB_USER) -d $(DB_NAME) \
+		-c "SELECT event_type, aggregate_type, aggregate_id, payload, created_at FROM audit_events ORDER BY created_at DESC;"
 
 test-integration:
 	TEST_DATABASE_URL="$(DATABASE_URL)" \

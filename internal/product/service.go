@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 )
 
 const (
@@ -32,11 +34,21 @@ const (
 
 type Service struct {
 	repository Repository
+	auditor    audit.Recorder
 }
 
 func NewService(repository Repository) *Service {
+	return NewServiceWithAuditor(repository, audit.NewNoopRecorder())
+}
+
+func NewServiceWithAuditor(repository Repository, auditor audit.Recorder) *Service {
+	if auditor == nil {
+		auditor = audit.NewNoopRecorder()
+	}
+
 	return &Service{
 		repository: repository,
+		auditor:    auditor,
 	}
 }
 
@@ -104,7 +116,16 @@ func (s *Service) Create(ctx context.Context, input CreateProductInput) (Product
 		return Product{}, err
 	}
 
-	return s.repository.Create(ctx, normalizedInput)
+	item, err := s.repository.Create(ctx, normalizedInput)
+	if err != nil {
+		return Product{}, err
+	}
+
+	s.recordAuditEvent(ctx, AuditEventProductCreated, item, map[string]any{
+		"operation": "create",
+	})
+
+	return item, nil
 }
 
 func (s *Service) Update(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
@@ -124,7 +145,16 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateProductInpu
 		return Product{}, err
 	}
 
-	return s.repository.Update(ctx, strings.TrimSpace(id), normalizedInput)
+	item, err := s.repository.Update(ctx, strings.TrimSpace(id), normalizedInput)
+	if err != nil {
+		return Product{}, err
+	}
+
+	s.recordAuditEvent(ctx, AuditEventProductUpdated, item, map[string]any{
+		"operation": "update",
+	})
+
+	return item, nil
 }
 
 func (s *Service) Patch(ctx context.Context, id string, input PatchProductInput) (Product, error) {
@@ -167,15 +197,88 @@ func (s *Service) Patch(ctx context.Context, id string, input PatchProductInput)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
-	return s.repository.Delete(ctx, strings.TrimSpace(id))
+	trimmedID := strings.TrimSpace(id)
+
+	item, err := s.repository.Get(ctx, trimmedID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repository.Delete(ctx, trimmedID); err != nil {
+		return err
+	}
+
+	s.recordAuditEvent(ctx, AuditEventProductDeleted, item, map[string]any{
+		"operation": "soft_delete",
+	})
+
+	return nil
 }
 
 func (s *Service) Restore(ctx context.Context, id string) (Product, error) {
-	return s.repository.Restore(ctx, strings.TrimSpace(id))
+	item, err := s.repository.Restore(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return Product{}, err
+	}
+
+	s.recordAuditEvent(ctx, AuditEventProductRestored, item, map[string]any{
+		"operation": "restore",
+	})
+
+	return item, nil
 }
 
 func (s *Service) HardDelete(ctx context.Context, id string) error {
-	return s.repository.HardDelete(ctx, strings.TrimSpace(id))
+	trimmedID := strings.TrimSpace(id)
+
+	item, err := s.repository.GetDeleted(ctx, trimmedID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			if _, getActiveErr := s.repository.Get(ctx, trimmedID); getActiveErr == nil {
+				return ErrProductMustBeDeletedFirst
+			}
+
+			return ErrNotFound
+		}
+
+		return err
+	}
+
+	if err := s.repository.HardDelete(ctx, trimmedID); err != nil {
+		return err
+	}
+
+	s.recordAuditEvent(ctx, AuditEventProductHardDeleted, item, map[string]any{
+		"operation": "hard_delete",
+	})
+
+	return nil
+}
+
+func (s *Service) recordAuditEvent(
+	ctx context.Context,
+	eventType string,
+	item Product,
+	payload map[string]any,
+) {
+	if s.auditor == nil {
+		return
+	}
+
+	if payload == nil {
+		payload = map[string]any{}
+	}
+
+	payload["sku"] = item.SKU
+	payload["name"] = item.Name
+	payload["price"] = item.Price
+
+	_ = s.auditor.Record(ctx, audit.Event{
+		Type:          eventType,
+		AggregateType: AuditAggregateProduct,
+		AggregateID:   item.ID,
+		Payload:       payload,
+	})
 }
 
 type FieldViolation struct {

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/config"
 	"github.com/r3dp4nd/go-clean-api/internal/database"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
@@ -52,7 +53,8 @@ func (a *App) Run() error {
 	a.logger.Info("postgres connection established")
 
 	productRepository := product.NewPostgresRepository(postgresPool)
-	productService := product.NewService(productRepository)
+	auditRecorder := audit.NewPostgresRecorder(postgresPool)
+	productService := product.NewServiceWithAuditor(productRepository, auditRecorder)
 
 	httpServer := server.New(server.Options{
 		Addr:              a.config.HTTP.Addr,

@@ -216,6 +216,22 @@ func (s *Store) Get(ctx context.Context, id string) (Product, error) {
 	return item, nil
 }
 
+func (s *Store) GetDeleted(ctx context.Context, id string) (Product, error) {
+	if err := ctx.Err(); err != nil {
+		return Product{}, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.products[strings.TrimSpace(id)]
+	if !ok || item.DeletedAt == nil {
+		return Product{}, ErrNotFound
+	}
+
+	return item, nil
+}
+
 func (s *Store) GetBySKU(ctx context.Context, sku string) (Product, error) {
 	if err := ctx.Err(); err != nil {
 		return Product{}, err

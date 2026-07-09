@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 )
 
 var errRepositoryFailure = errors.New("repository failure")
@@ -14,6 +16,7 @@ type fakeRepository struct {
 	listFn        func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
 	listDeletedFn func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
 	getFn         func(ctx context.Context, id string) (Product, error)
+	getDeletedFn  func(ctx context.Context, id string) (Product, error)
 	getBySKUFn    func(ctx context.Context, sku string) (Product, error)
 	createFn      func(ctx context.Context, input CreateProductInput) (Product, error)
 	updateFn      func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
@@ -24,12 +27,22 @@ type fakeRepository struct {
 	listCalls        int
 	listDeletedCalls int
 	getCalls         int
+	getDeletedCalls  int
 	getBySKUCalls    int
 	createCalls      int
 	updateCalls      int
 	deleteCalls      int
 	restoreCalls     int
 	hardDeleteCalls  int
+}
+
+type fakeAuditRecorder struct {
+	events []audit.Event
+}
+
+func (f *fakeAuditRecorder) Record(ctx context.Context, event audit.Event) error {
+	f.events = append(f.events, event)
+	return nil
 }
 
 func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
@@ -57,6 +70,16 @@ func (f *fakeRepository) Get(ctx context.Context, id string) (Product, error) {
 
 	if f.getFn != nil {
 		return f.getFn(ctx, id)
+	}
+
+	return Product{}, nil
+}
+
+func (f *fakeRepository) GetDeleted(ctx context.Context, id string) (Product, error) {
+	f.getDeletedCalls++
+
+	if f.getDeletedFn != nil {
+		return f.getDeletedFn(ctx, id)
 	}
 
 	return Product{}, nil
@@ -1472,5 +1495,206 @@ func TestServiceHardDeleteProductMustBeSoftDeletedFirst(t *testing.T) {
 	err := service.HardDelete(context.Background(), "123")
 	if !errors.Is(err, ErrProductMustBeDeletedFirst) {
 		t.Fatalf("expected ErrProductMustBeDeletedFirst, got %v", err)
+	}
+}
+
+func TestServiceCreateProductRecordsAuditEvent(t *testing.T) {
+	now := time.Now().UTC()
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		createFn: func(ctx context.Context, input CreateProductInput) (Product, error) {
+			return Product{
+				ID:          "1",
+				SKU:         input.SKU,
+				Name:        input.Name,
+				Description: input.Description,
+				Price:       input.Price,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	_, err := service.Create(context.Background(), CreateProductInput{
+		SKU:         "AUDIT-CREATE-001",
+		Name:        "Audit Create",
+		Description: "Producto auditado",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	event := auditor.events[0]
+
+	if event.Type != AuditEventProductCreated {
+		t.Fatalf("expected event type %q, got %q", AuditEventProductCreated, event.Type)
+	}
+
+	if event.AggregateType != AuditAggregateProduct {
+		t.Fatalf("expected aggregate type %q, got %q", AuditAggregateProduct, event.AggregateType)
+	}
+
+	if event.AggregateID != "1" {
+		t.Fatalf("expected aggregate id %q, got %q", "1", event.AggregateID)
+	}
+}
+
+func TestServiceUpdateProductRecordsAuditEvent(t *testing.T) {
+	now := time.Now().UTC()
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		updateFn: func(ctx context.Context, id string, input UpdateProductInput) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         input.SKU,
+				Name:        input.Name,
+				Description: input.Description,
+				Price:       input.Price,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	_, err := service.Update(context.Background(), "123", UpdateProductInput{
+		SKU:         "AUDIT-UPDATE-001",
+		Name:        "Audit Update",
+		Description: "Producto actualizado",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	if auditor.events[0].Type != AuditEventProductUpdated {
+		t.Fatalf("expected event type %q, got %q", AuditEventProductUpdated, auditor.events[0].Type)
+	}
+}
+
+func TestServiceDeleteProductRecordsAuditEvent(t *testing.T) {
+	now := time.Now().UTC()
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		getFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         "AUDIT-DELETE-001",
+				Name:        "Audit Delete",
+				Description: "Producto eliminado",
+				Price:       100,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		deleteFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	if err := service.Delete(context.Background(), "123"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	if auditor.events[0].Type != AuditEventProductDeleted {
+		t.Fatalf("expected event type %q, got %q", AuditEventProductDeleted, auditor.events[0].Type)
+	}
+}
+
+func TestServiceRestoreProductRecordsAuditEvent(t *testing.T) {
+	now := time.Now().UTC()
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		restoreFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         "AUDIT-RESTORE-001",
+				Name:        "Audit Restore",
+				Description: "Producto restaurado",
+				Price:       100,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	_, err := service.Restore(context.Background(), "123")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	if auditor.events[0].Type != AuditEventProductRestored {
+		t.Fatalf("expected event type %q, got %q", AuditEventProductRestored, auditor.events[0].Type)
+	}
+}
+
+func TestServiceHardDeleteProductRecordsAuditEvent(t *testing.T) {
+	now := time.Now().UTC()
+	deletedAt := now.Add(time.Minute)
+
+	auditor := &fakeAuditRecorder{}
+
+	repository := &fakeRepository{
+		getDeletedFn: func(ctx context.Context, id string) (Product, error) {
+			return Product{
+				ID:          id,
+				SKU:         "AUDIT-HARD-DELETE-001",
+				Name:        "Audit Hard Delete",
+				Description: "Producto eliminado físicamente",
+				Price:       100,
+				CreatedAt:   now,
+				UpdatedAt:   deletedAt,
+				DeletedAt:   &deletedAt,
+			}, nil
+		},
+		hardDeleteFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+
+	service := NewServiceWithAuditor(repository, auditor)
+
+	if err := service.HardDelete(context.Background(), "123"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(auditor.events) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(auditor.events))
+	}
+
+	if auditor.events[0].Type != AuditEventProductHardDeleted {
+		t.Fatalf("expected event type %q, got %q", AuditEventProductHardDeleted, auditor.events[0].Type)
 	}
 }
