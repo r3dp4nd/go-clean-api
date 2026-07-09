@@ -494,3 +494,13 @@ Endpoint:
 ```text
 GET /api/v1/products/deleted
 ```
+
+## Hard delete protegido
+
+La API permite eliminar físicamente un producto solo si primero fue eliminado por soft delete.
+
+Endpoint:
+
+```text
+DELETE /api/v1/products/{id}/hard
+```
