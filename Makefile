@@ -246,7 +246,7 @@ db-products:
 		-p $(COMPOSE_PROJECT_NAME) \
 		-f $(COMPOSE_FILE) \
 		exec postgres psql -U $(DB_USER) -d $(DB_NAME) \
-		-c "SELECT id, sku, name, description, price, created_at, updated_at FROM products ORDER BY created_at DESC;"
+		-c "SELECT id, sku, name, description, price, created_at, updated_at, deleted_at FROM products ORDER BY created_at DESC;"
 
 db-tables:
 	docker compose \

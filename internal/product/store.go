@@ -64,6 +64,10 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	products := make([]Product, 0, len(s.products))
 
 	for _, item := range s.products {
+		if item.DeletedAt != nil {
+			continue
+		}
+
 		if productMatchesFilters(
 			item,
 			normalizedSearch,
@@ -84,12 +88,9 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	totalPages := calculateTotalPages(total, input.PageSize)
 
 	offset := (input.Page - 1) * input.PageSize
-
-	end := offset + input.PageSize
-
 	if offset >= total {
 		return ListProductsResult{
-			Items:       products[offset:end],
+			Items:       []Product{},
 			Total:       total,
 			Page:        input.Page,
 			PageSize:    input.PageSize,
@@ -104,6 +105,7 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 		}, nil
 	}
 
+	end := offset + input.PageSize
 	if end > total {
 		end = total
 	}
@@ -132,8 +134,8 @@ func (s *Store) Get(ctx context.Context, id string) (Product, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	item, ok := s.products[id]
-	if !ok {
+	item, ok := s.products[strings.TrimSpace(id)]
+	if !ok || item.DeletedAt != nil {
 		return Product{}, ErrNotFound
 	}
 
@@ -149,7 +151,8 @@ func (s *Store) GetBySKU(ctx context.Context, sku string) (Product, error) {
 	defer s.mu.RUnlock()
 
 	for _, item := range s.products {
-		if strings.EqualFold(item.SKU, strings.TrimSpace(sku)) {
+		if item.DeletedAt == nil &&
+			strings.EqualFold(item.SKU, strings.TrimSpace(sku)) {
 			return item, nil
 		}
 	}
@@ -166,7 +169,8 @@ func (s *Store) Create(ctx context.Context, input CreateProductInput) (Product, 
 	defer s.mu.Unlock()
 
 	for _, existingProduct := range s.products {
-		if strings.EqualFold(existingProduct.SKU, input.SKU) {
+		if existingProduct.DeletedAt == nil &&
+			strings.EqualFold(existingProduct.SKU, input.SKU) {
 			return Product{}, ErrSKUAlreadyExists
 		}
 	}
@@ -199,12 +203,14 @@ func (s *Store) Update(ctx context.Context, id string, input UpdateProductInput)
 	defer s.mu.Unlock()
 
 	item, ok := s.products[id]
-	if !ok {
+	if !ok || item.DeletedAt != nil {
 		return Product{}, ErrNotFound
 	}
 
 	for _, existingProduct := range s.products {
-		if existingProduct.ID != id && strings.EqualFold(existingProduct.SKU, input.SKU) {
+		if existingProduct.DeletedAt == nil &&
+			existingProduct.ID != id &&
+			strings.EqualFold(existingProduct.SKU, input.SKU) {
 			return Product{}, ErrSKUAlreadyExists
 		}
 	}
@@ -228,11 +234,19 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.products[id]; !ok {
+	trimmedID := strings.TrimSpace(id)
+
+	item, ok := s.products[trimmedID]
+	if !ok || item.DeletedAt != nil {
 		return ErrNotFound
 	}
 
-	delete(s.products, id)
+	now := time.Now().UTC()
+
+	item.DeletedAt = &now
+	item.UpdatedAt = now
+
+	s.products[trimmedID] = item
 
 	return nil
 }

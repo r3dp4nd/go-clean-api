@@ -66,7 +66,8 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error
 			created_at,
 			updated_at
 		FROM products
-		WHERE id::text = $1
+		WHERE id = $1::uuid
+		  AND deleted_at IS NULL
 	`
 
 	var item Product
@@ -103,6 +104,7 @@ func (r *PostgresRepository) GetBySKU(ctx context.Context, sku string) (Product,
 			updated_at
 		FROM products
 		WHERE upper(sku) = upper($1)
+		  AND deleted_at IS NULL
 	`
 
 	var item Product
@@ -184,7 +186,8 @@ func (r *PostgresRepository) Update(ctx context.Context, id string, input Update
 			description = $4,
 			price = $5,
 			updated_at = NOW()
-		WHERE id::text = $1
+		WHERE id = $1::uuid
+		  AND deleted_at IS NULL
 		RETURNING
 			id::text,
 			sku,
@@ -231,17 +234,24 @@ func (r *PostgresRepository) Update(ctx context.Context, id string, input Update
 
 func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 	const query = `
-		DELETE FROM products
-		WHERE id::text = $1
+		UPDATE products
+		SET
+			deleted_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $1::uuid
+		  AND deleted_at IS NULL
+		RETURNING id
 	`
 
-	commandTag, err := r.pool.Exec(ctx, query, strings.TrimSpace(id))
-	if err != nil {
-		return fmt.Errorf("delete product: %w", err)
-	}
+	var deletedID string
 
-	if commandTag.RowsAffected() == 0 {
-		return ErrNotFound
+	err := r.pool.QueryRow(ctx, query, strings.TrimSpace(id)).Scan(&deletedID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("delete product: %w", err)
 	}
 
 	return nil
@@ -342,7 +352,9 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 }
 
 func buildProductWhereClause(input ListProductsInput) (string, []any) {
-	conditions := make([]string, 0, 5)
+	conditions := []string{
+		"deleted_at IS NULL",
+	}
 	args := make([]any, 0, 5)
 
 	if input.Search != "" {
@@ -402,10 +414,6 @@ func buildProductWhereClause(input ListProductsInput) (string, []any) {
 		)
 	}
 
-	if len(conditions) == 0 {
-		return "", args
-	}
-
 	return "\nWHERE " + strings.Join(conditions, "\n  AND "), args
 }
 
@@ -442,6 +450,10 @@ func isProductSKUUniqueViolation(err error) bool {
 		return false
 	}
 
-	return pgErr.Code == "23505" &&
-		pgErr.ConstraintName == "products_sku_unique"
+	if pgErr.Code != "23505" {
+		return false
+	}
+
+	return pgErr.ConstraintName == "products_sku_unique" ||
+		pgErr.ConstraintName == "idx_products_sku_unique_active"
 }

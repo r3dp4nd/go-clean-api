@@ -464,3 +464,13 @@ Endpoint:
 ```text
 PATCH /api/v1/products/{id}
 ```
+
+## Soft delete de productos
+
+La API usa soft delete para productos.
+
+Cuando se elimina un producto:
+
+```text
+DELETE /api/v1/products/{id}
+```

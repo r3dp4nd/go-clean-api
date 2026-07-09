@@ -412,3 +412,85 @@ func TestIntegrationPostgresProductRepositoryListByCreatedRange(t *testing.T) {
 		t.Fatalf("expected created to %v, got %v", createdTo, result.CreatedTo)
 	}
 }
+
+func TestIntegrationPostgresProductRepositorySoftDelete(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	created, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-SOFT-DELETE-001",
+		Name:        "Postgres Soft Delete",
+		Description: "Producto para soft delete en Postgres",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	_, err = repository.Get(ctx, created.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound getting soft deleted product, got %v", err)
+	}
+
+	_, err = repository.GetBySKU(ctx, created.SKU)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound getting soft deleted product by sku, got %v", err)
+	}
+
+	result, err := repository.List(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldID,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing products, got %v", err)
+	}
+
+	if result.Total != 0 {
+		t.Fatalf("expected total %d after soft delete, got %d", 0, result.Total)
+	}
+}
+
+func TestIntegrationPostgresProductRepositoryAllowsReusingSKUAfterSoftDelete(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	first, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-REUSABLE-SKU",
+		Name:        "First Product",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, first.ID); err != nil {
+		t.Fatalf("expected no error soft deleting first product, got %v", err)
+	}
+
+	second, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-REUSABLE-SKU",
+		Name:        "Second Product",
+		Description: "Segundo producto",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error reusing sku after soft delete, got %v", err)
+	}
+
+	if second.ID == first.ID {
+		t.Fatalf("expected different product IDs, got same ID %q", second.ID)
+	}
+
+	if second.SKU != "PG-REUSABLE-SKU" {
+		t.Fatalf("expected sku %q, got %q", "PG-REUSABLE-SKU", second.SKU)
+	}
+}

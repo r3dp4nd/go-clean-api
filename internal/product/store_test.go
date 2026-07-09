@@ -919,3 +919,40 @@ func TestStoreListProductsFilterByCreatedRange(t *testing.T) {
 		t.Fatalf("expected created to %v, got %v", createdTo, result.CreatedTo)
 	}
 }
+
+func TestStoreCreateProductAllowsReusingSKUAfterSoftDelete(t *testing.T) {
+	store := NewStore()
+	ctx := context.Background()
+
+	first, err := store.Create(ctx, CreateProductInput{
+		SKU:         "REUSABLE-SKU",
+		Name:        "First Product",
+		Description: "Primer producto",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating first product, got %v", err)
+	}
+
+	if err := store.Delete(ctx, first.ID); err != nil {
+		t.Fatalf("expected no error soft deleting first product, got %v", err)
+	}
+
+	second, err := store.Create(ctx, CreateProductInput{
+		SKU:         "reusable-sku",
+		Name:        "Second Product",
+		Description: "Segundo producto",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error reusing sku after soft delete, got %v", err)
+	}
+
+	if second.ID == first.ID {
+		t.Fatalf("expected different product IDs, got same ID %q", second.ID)
+	}
+
+	if second.SKU != "reusable-sku" && second.SKU != "REUSABLE-SKU" {
+		t.Fatalf("expected reused sku, got %q", second.SKU)
+	}
+}

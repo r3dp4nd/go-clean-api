@@ -1795,3 +1795,252 @@ func decodeProductResourceResponse(t *testing.T, recorder *httptest.ResponseReco
 
 	return response.Data
 }
+
+func TestDeleteProductSoftDeletesFromPublicAPI(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-SOFT-DELETE-001",
+		"name": "HTTP Soft Delete",
+		"description": "Producto para probar soft delete desde HTTP",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusCreated,
+			createRecorder.Code,
+			createRecorder.Body.String(),
+		)
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	if createdProduct.ID == "" {
+		t.Fatal("expected created product ID to be generated")
+	}
+
+	if createdProduct.SKU != "HTTP-SOFT-DELETE-001" {
+		t.Fatalf("expected sku %q, got %q", "HTTP-SOFT-DELETE-001", createdProduct.SKU)
+	}
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+	deleteRequest.Header.Set(requestIDHeader, "soft-delete-product")
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusNoContent,
+			deleteRecorder.Code,
+			deleteRecorder.Body.String(),
+		)
+	}
+
+	getRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+	getRequest.Header.Set(requestIDHeader, "get-soft-deleted-product")
+
+	getRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(getRecorder, getRequest)
+
+	if getRecorder.Code != http.StatusNotFound {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusNotFound,
+			getRecorder.Code,
+			getRecorder.Body.String(),
+		)
+	}
+
+	var getErrorResponse ErrorResponse
+	if err := json.NewDecoder(getRecorder.Body).Decode(&getErrorResponse); err != nil {
+		t.Fatalf("failed to decode get error response: %v", err)
+	}
+
+	if getErrorResponse.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, getErrorResponse.Error.Code)
+	}
+
+	getBySKURequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/sku/HTTP-SOFT-DELETE-001",
+		nil,
+	)
+	getBySKURequest.Header.Set(requestIDHeader, "get-soft-deleted-product-by-sku")
+
+	getBySKURecorder := httptest.NewRecorder()
+	handler.ServeHTTP(getBySKURecorder, getBySKURequest)
+
+	if getBySKURecorder.Code != http.StatusNotFound {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusNotFound,
+			getBySKURecorder.Code,
+			getBySKURecorder.Body.String(),
+		)
+	}
+
+	var getBySKUErrorResponse ErrorResponse
+	if err := json.NewDecoder(getBySKURecorder.Body).Decode(&getBySKUErrorResponse); err != nil {
+		t.Fatalf("failed to decode get by sku error response: %v", err)
+	}
+
+	if getBySKUErrorResponse.Error.Code != errorCodeNotFound {
+		t.Fatalf("expected error code %q, got %q", errorCodeNotFound, getBySKUErrorResponse.Error.Code)
+	}
+
+	skuExistsRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/exists?sku=HTTP-SOFT-DELETE-001",
+		nil,
+	)
+	skuExistsRequest.Header.Set(requestIDHeader, "soft-deleted-sku-exists")
+
+	skuExistsRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(skuExistsRecorder, skuExistsRequest)
+
+	if skuExistsRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusOK,
+			skuExistsRecorder.Code,
+			skuExistsRecorder.Body.String(),
+		)
+	}
+
+	var skuExistsResponse ProductSKUExistsResponse
+	if err := json.NewDecoder(skuExistsRecorder.Body).Decode(&skuExistsResponse); err != nil {
+		t.Fatalf("failed to decode sku exists response: %v", err)
+	}
+
+	if skuExistsResponse.Data.SKU != "HTTP-SOFT-DELETE-001" {
+		t.Fatalf("expected sku %q, got %q", "HTTP-SOFT-DELETE-001", skuExistsResponse.Data.SKU)
+	}
+
+	if skuExistsResponse.Data.Exists {
+		t.Fatal("expected soft deleted sku to not exist in public API")
+	}
+
+	listRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products",
+		nil,
+	)
+
+	listRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(listRecorder, listRequest)
+
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusOK,
+			listRecorder.Code,
+			listRecorder.Body.String(),
+		)
+	}
+
+	var listResponse ProductListResponse
+	if err := json.NewDecoder(listRecorder.Body).Decode(&listResponse); err != nil {
+		t.Fatalf("failed to decode product list response: %v", err)
+	}
+
+	if listResponse.Meta.Total != 0 {
+		t.Fatalf("expected total %d after soft delete, got %d", 0, listResponse.Meta.Total)
+	}
+
+	if len(listResponse.Data) != 0 {
+		t.Fatalf("expected 0 products after soft delete, got %d", len(listResponse.Data))
+	}
+}
+
+func TestCreateProductAllowsReusingSKUAfterSoftDelete(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	firstBody := []byte(`{
+		"sku": "HTTP-REUSABLE-SKU",
+		"name": "First Product",
+		"description": "Primer producto",
+		"price": 100
+	}`)
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(firstBody),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	if firstRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, firstRecorder.Code, firstRecorder.Body.String())
+	}
+
+	firstProduct := decodeProductResourceResponse(t, firstRecorder)
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+firstProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	secondBody := []byte(`{
+		"sku": "http-reusable-sku",
+		"name": "Second Product",
+		"description": "Segundo producto",
+		"price": 200
+	}`)
+
+	secondRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(secondBody),
+	)
+	secondRequest.Header.Set("Content-Type", "application/json")
+
+	secondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if secondRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, secondRecorder.Code, secondRecorder.Body.String())
+	}
+
+	secondProduct := decodeProductResourceResponse(t, secondRecorder)
+
+	if secondProduct.ID == firstProduct.ID {
+		t.Fatalf("expected different product IDs, got same ID %q", secondProduct.ID)
+	}
+
+	if secondProduct.SKU != "HTTP-REUSABLE-SKU" {
+		t.Fatalf("expected normalized sku %q, got %q", "HTTP-REUSABLE-SKU", secondProduct.SKU)
+	}
+}

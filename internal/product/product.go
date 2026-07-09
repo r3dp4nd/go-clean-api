@@ -10,6 +10,7 @@ type Product struct {
 	Price       float64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	DeletedAt   *time.Time
 }
 
 type CreateProductInput struct {
