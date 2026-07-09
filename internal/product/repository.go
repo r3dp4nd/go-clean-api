@@ -4,6 +4,7 @@ import "context"
 
 type Repository interface {
 	List(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
+	ListDeleted(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
 	Get(ctx context.Context, id string) (Product, error)
 	GetBySKU(ctx context.Context, sku string) (Product, error)
 	Create(ctx context.Context, input CreateProductInput) (Product, error)

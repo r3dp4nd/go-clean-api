@@ -484,3 +484,13 @@ Endpoint:
 ```text
 POST /api/v1/products/{id}/restore
 ```
+
+## Listar productos eliminados
+
+La API permite listar productos eliminados por soft delete.
+
+Endpoint:
+
+```text
+GET /api/v1/products/deleted
+```

@@ -2231,3 +2231,125 @@ func TestRestoreProductMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected Allow header %q, got %q", http.MethodPost, got)
 	}
 }
+
+func TestListDeletedProducts(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	activeBody := []byte(`{
+		"sku": "HTTP-ACTIVE-001",
+		"name": "Active Product",
+		"description": "Producto activo",
+		"price": 100
+	}`)
+
+	activeRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(activeBody),
+	)
+	activeRequest.Header.Set("Content-Type", "application/json")
+
+	activeRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(activeRecorder, activeRequest)
+
+	if activeRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, activeRecorder.Code, activeRecorder.Body.String())
+	}
+
+	deletedBody := []byte(`{
+		"sku": "HTTP-DELETED-001",
+		"name": "Deleted Product",
+		"description": "Producto eliminado",
+		"price": 200
+	}`)
+
+	deletedRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(deletedBody),
+	)
+	deletedRequest.Header.Set("Content-Type", "application/json")
+
+	deletedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deletedRecorder, deletedRequest)
+
+	if deletedRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, deletedRecorder.Code, deletedRecorder.Body.String())
+	}
+
+	deletedProduct := decodeProductResourceResponse(t, deletedRecorder)
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+deletedProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	listDeletedRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/deleted",
+		nil,
+	)
+	listDeletedRequest.Header.Set(requestIDHeader, "list-deleted-products")
+
+	listDeletedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(listDeletedRecorder, listDeletedRequest)
+
+	if listDeletedRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, listDeletedRecorder.Code, listDeletedRecorder.Body.String())
+	}
+
+	var response DeletedProductListResponse
+	if err := json.NewDecoder(listDeletedRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode deleted product list response: %v", err)
+	}
+
+	if response.Meta.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, response.Meta.Total)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 deleted product, got %d", len(response.Data))
+	}
+
+	if response.Data[0].ID != deletedProduct.ID {
+		t.Fatalf("expected deleted product ID %q, got %q", deletedProduct.ID, response.Data[0].ID)
+	}
+
+	if response.Data[0].SKU != "HTTP-DELETED-001" {
+		t.Fatalf("expected deleted sku %q, got %q", "HTTP-DELETED-001", response.Data[0].SKU)
+	}
+
+	if response.Data[0].DeletedAt == nil {
+		t.Fatal("expected deleted_at to be set")
+	}
+}
+
+func TestListDeletedProductsMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/deleted",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "list-deleted-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
+	}
+}

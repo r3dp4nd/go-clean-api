@@ -126,6 +126,79 @@ func (s *Store) List(ctx context.Context, input ListProductsInput) (ListProducts
 	}, nil
 }
 
+func (s *Store) ListDeleted(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+	if err := ctx.Err(); err != nil {
+		return ListProductsResult{}, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	normalizedSearch := strings.ToLower(strings.TrimSpace(input.Search))
+
+	products := make([]Product, 0, len(s.products))
+
+	for _, item := range s.products {
+		if item.DeletedAt == nil {
+			continue
+		}
+
+		if productMatchesFilters(
+			item,
+			normalizedSearch,
+			input.MinPrice,
+			input.MaxPrice,
+			input.CreatedFrom,
+			input.CreatedTo,
+		) {
+			products = append(products, item)
+		}
+	}
+
+	sortProducts(products, input.Sort, input.Order)
+
+	total := len(products)
+	totalPages := calculateTotalPages(total, input.PageSize)
+
+	offset := (input.Page - 1) * input.PageSize
+	if offset >= total {
+		return ListProductsResult{
+			Items:       []Product{},
+			Total:       total,
+			Page:        input.Page,
+			PageSize:    input.PageSize,
+			TotalPages:  totalPages,
+			Search:      input.Search,
+			Sort:        input.Sort,
+			Order:       input.Order,
+			MinPrice:    input.MinPrice,
+			MaxPrice:    input.MaxPrice,
+			CreatedFrom: input.CreatedFrom,
+			CreatedTo:   input.CreatedTo,
+		}, nil
+	}
+
+	end := offset + input.PageSize
+	if end > total {
+		end = total
+	}
+
+	return ListProductsResult{
+		Items:       products[offset:end],
+		Total:       total,
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+		TotalPages:  totalPages,
+		Search:      input.Search,
+		Sort:        input.Sort,
+		Order:       input.Order,
+		MinPrice:    input.MinPrice,
+		MaxPrice:    input.MaxPrice,
+		CreatedFrom: input.CreatedFrom,
+		CreatedTo:   input.CreatedTo,
+	}, nil
+}
+
 func (s *Store) Get(ctx context.Context, id string) (Product, error) {
 	if err := ctx.Err(); err != nil {
 		return Product{}, err
@@ -397,6 +470,12 @@ func compareTime(left time.Time, right time.Time) int {
 	default:
 		return 0
 	}
+}
+
+func sortProducts(products []Product, s string, order string) {
+	sort.Slice(products, func(i, j int) bool {
+		return productLess(products[i], products[j], s, order)
+	})
 }
 
 func productMatchesFilters(

@@ -30,6 +30,22 @@ type ProductListResponse struct {
 	Meta PaginationMeta    `json:"meta"`
 }
 
+type DeletedProductResponse struct {
+	ID          string     `json:"id"`
+	SKU         string     `json:"sku"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Price       float64    `json:"price"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+}
+
+type DeletedProductListResponse struct {
+	Data []DeletedProductResponse `json:"data"`
+	Meta PaginationMeta           `json:"meta"`
+}
+
 type PaginationMeta struct {
 	Page        int        `json:"page"`
 	PageSize    int        `json:"page_size"`

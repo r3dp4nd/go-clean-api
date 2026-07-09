@@ -137,6 +137,15 @@ func (h *Handler) handleAPIV1ProductExists(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) handleAPIV1DeletedProducts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, r, http.MethodGet)
+		return
+	}
+
+	h.listDeletedProducts(w, r)
+}
+
 func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 	input, fields := readProductListQuery(r)
 	if len(fields) > 0 {
@@ -175,6 +184,50 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 
 	for _, item := range result.Items {
 		response.Data = append(response.Data, toProductResponse(item))
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) listDeletedProducts(w http.ResponseWriter, r *http.Request) {
+	input, fieldErrors := readProductListQuery(r)
+	if len(fieldErrors) > 0 {
+		writeValidationError(w, r, fieldErrors)
+		return
+	}
+
+	result, err := h.productService.ListDeleted(r.Context(), input)
+	if err != nil {
+		if validationErr, ok := err.(product.ValidationError); ok {
+			writeProductValidationError(w, r, validationErr)
+			return
+		}
+
+		h.logger.Error(
+			"error listing deleted products",
+			"error", err,
+			"request_id", getRequestID(r.Context()),
+		)
+
+		writeInternalError(w, r)
+		return
+	}
+
+	response := DeletedProductListResponse{
+		Data: toDeletedProductResponses(result.Items),
+		Meta: PaginationMeta{
+			Page:        result.Page,
+			PageSize:    result.PageSize,
+			Total:       result.Total,
+			TotalPages:  result.TotalPages,
+			Search:      result.Search,
+			Sort:        result.Sort,
+			Order:       result.Order,
+			MinPrice:    result.MinPrice,
+			MaxPrice:    result.MaxPrice,
+			CreatedFrom: result.CreatedFrom,
+			CreatedTo:   result.CreatedTo,
+		},
 	}
 
 	writeJSON(w, http.StatusOK, response)
@@ -410,4 +463,27 @@ func toProductResourceResponse(item product.Product) ProductResourceResponse {
 	return ProductResourceResponse{
 		Data: toProductResponse(item),
 	}
+}
+
+func toDeletedProductResponse(item product.Product) DeletedProductResponse {
+	return DeletedProductResponse{
+		ID:          item.ID,
+		SKU:         item.SKU,
+		Name:        item.Name,
+		Description: item.Description,
+		Price:       item.Price,
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
+		DeletedAt:   item.DeletedAt,
+	}
+}
+
+func toDeletedProductResponses(items []product.Product) []DeletedProductResponse {
+	responses := make([]DeletedProductResponse, 0, len(items))
+
+	for _, item := range items {
+		responses = append(responses, toDeletedProductResponse(item))
+	}
+
+	return responses
 }

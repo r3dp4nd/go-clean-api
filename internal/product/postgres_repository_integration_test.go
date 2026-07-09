@@ -567,3 +567,59 @@ func TestIntegrationPostgresProductRepositoryRestoreDuplicateSKU(t *testing.T) {
 		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
 	}
 }
+
+func TestIntegrationPostgresProductRepositoryListDeleted(t *testing.T) {
+	repository := newPostgresIntegrationRepository(t)
+
+	ctx := context.Background()
+
+	_, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-ACTIVE-001",
+		Name:        "Active Product",
+		Description: "Producto activo",
+		Price:       100,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating active product, got %v", err)
+	}
+
+	deleted, err := repository.Create(ctx, CreateProductInput{
+		SKU:         "PG-DELETED-001",
+		Name:        "Deleted Product",
+		Description: "Producto eliminado",
+		Price:       200,
+	})
+	if err != nil {
+		t.Fatalf("expected no error creating deleted product, got %v", err)
+	}
+
+	if err := repository.Delete(ctx, deleted.ID); err != nil {
+		t.Fatalf("expected no error soft deleting product, got %v", err)
+	}
+
+	result, err := repository.ListDeleted(ctx, ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortFieldID,
+		Order:    SortOrderAsc,
+	})
+	if err != nil {
+		t.Fatalf("expected no error listing deleted products, got %v", err)
+	}
+
+	if result.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, result.Total)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 deleted product, got %d", len(result.Items))
+	}
+
+	if result.Items[0].ID != deleted.ID {
+		t.Fatalf("expected deleted product ID %q, got %q", deleted.ID, result.Items[0].ID)
+	}
+
+	if result.Items[0].DeletedAt == nil {
+		t.Fatal("expected deleted_at to be set")
+	}
+}

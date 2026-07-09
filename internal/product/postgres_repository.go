@@ -11,6 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type productVisibility string
+
+const (
+	productVisibilityActive  productVisibility = "active"
+	productVisibilityDeleted productVisibility = "deleted"
+)
+
 type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
@@ -24,35 +31,11 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 }
 
 func (r *PostgresRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
-	normalizedInput, err := normalizeListProductsInput(input)
-	if err != nil {
-		return ListProductsResult{}, err
-	}
+	return r.listByVisibility(ctx, input, productVisibilityActive)
+}
 
-	total, err := r.countProducts(ctx, normalizedInput)
-	if err != nil {
-		return ListProductsResult{}, err
-	}
-
-	items, err := r.listProducts(ctx, normalizedInput)
-	if err != nil {
-		return ListProductsResult{}, err
-	}
-
-	return ListProductsResult{
-		Items:       items,
-		Total:       total,
-		Page:        normalizedInput.Page,
-		PageSize:    normalizedInput.PageSize,
-		TotalPages:  calculateTotalPages(total, normalizedInput.PageSize),
-		Search:      normalizedInput.Search,
-		Sort:        normalizedInput.Sort,
-		Order:       normalizedInput.Order,
-		MinPrice:    normalizedInput.MinPrice,
-		MaxPrice:    normalizedInput.MaxPrice,
-		CreatedFrom: normalizedInput.CreatedFrom,
-		CreatedTo:   normalizedInput.CreatedTo,
-	}, nil
+func (r *PostgresRepository) ListDeleted(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+	return r.listByVisibility(ctx, input, productVisibilityDeleted)
 }
 
 func (r *PostgresRepository) Get(ctx context.Context, id string) (Product, error) {
@@ -310,13 +293,17 @@ func (r *PostgresRepository) Restore(ctx context.Context, id string) (Product, e
 	return item, nil
 }
 
-func (r *PostgresRepository) countProducts(ctx context.Context, input ListProductsInput) (int, error) {
+func (r *PostgresRepository) countProducts(
+	ctx context.Context,
+	input ListProductsInput,
+	visibility productVisibility,
+) (int, error) {
 	query := `
 		SELECT COUNT(*)
 		FROM products
 	`
 
-	whereClause, args := buildProductWhereClause(input)
+	whereClause, args := buildProductWhereClause(input, visibility)
 
 	query += whereClause
 
@@ -329,25 +316,21 @@ func (r *PostgresRepository) countProducts(ctx context.Context, input ListProduc
 	return total, nil
 }
 
-func (r *PostgresRepository) listProducts(ctx context.Context, input ListProductsInput) ([]Product, error) {
+func (r *PostgresRepository) listProducts(
+	ctx context.Context,
+	input ListProductsInput,
+	visibility productVisibility,
+) ([]Product, error) {
 	offset := (input.Page - 1) * input.PageSize
+	sortExpression := postgresSortExpression(input.Sort)
+	sortOrder := postgresSortDirection(input.Order)
 
-	args := make([]any, 0, 3)
-
-	whereClause, args := buildProductWhereClause(input)
+	whereClause, args := buildProductWhereClause(input, visibility)
 
 	limitPosition := len(args) + 1
 	offsetPosition := len(args) + 2
 
 	args = append(args, input.PageSize, offset)
-
-	orderBy := postgresSortExpression(input.Sort)
-	orderDirection := postgresSortDirection(input.Order)
-	tieBreaker := ", id ASC"
-
-	if input.Sort == SortFieldID {
-		tieBreaker = ""
-	}
 
 	query := fmt.Sprintf(`
 		SELECT
@@ -357,16 +340,16 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 			description,
 			price::float8,
 			created_at,
-			updated_at
+			updated_at,
+			deleted_at
 		FROM products
 		%s
-		ORDER BY %s %s%s
+		ORDER BY %s %s, id ASC
 		LIMIT $%d OFFSET $%d
 	`,
 		whereClause,
-		orderBy,
-		orderDirection,
-		tieBreaker,
+		sortExpression,
+		sortOrder,
 		limitPosition,
 		offsetPosition,
 	)
@@ -377,7 +360,7 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 	}
 	defer rows.Close()
 
-	items := make([]Product, 0, input.PageSize)
+	items := make([]Product, 0)
 
 	for rows.Next() {
 		var item Product
@@ -390,6 +373,7 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 			&item.Price,
 			&item.CreatedAt,
 			&item.UpdatedAt,
+			&item.DeletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan product: %w", err)
 		}
@@ -404,11 +388,47 @@ func (r *PostgresRepository) listProducts(ctx context.Context, input ListProduct
 	return items, nil
 }
 
-func buildProductWhereClause(input ListProductsInput) (string, []any) {
-	conditions := []string{
-		"deleted_at IS NULL",
+func (r *PostgresRepository) listByVisibility(
+	ctx context.Context,
+	input ListProductsInput,
+	visibility productVisibility,
+) (ListProductsResult, error) {
+	total, err := r.countProducts(ctx, input, visibility)
+	if err != nil {
+		return ListProductsResult{}, err
 	}
+
+	items, err := r.listProducts(ctx, input, visibility)
+	if err != nil {
+		return ListProductsResult{}, err
+	}
+
+	return ListProductsResult{
+		Items:       items,
+		Total:       total,
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+		TotalPages:  calculateTotalPages(total, input.PageSize),
+		Search:      input.Search,
+		Sort:        input.Sort,
+		Order:       input.Order,
+		MinPrice:    input.MinPrice,
+		MaxPrice:    input.MaxPrice,
+		CreatedFrom: input.CreatedFrom,
+		CreatedTo:   input.CreatedTo,
+	}, nil
+}
+
+func buildProductWhereClause(input ListProductsInput, visibility productVisibility) (string, []any) {
+	conditions := make([]string, 0, 6)
 	args := make([]any, 0, 5)
+
+	switch visibility {
+	case productVisibilityDeleted:
+		conditions = append(conditions, "deleted_at IS NOT NULL")
+	default:
+		conditions = append(conditions, "deleted_at IS NULL")
+	}
 
 	if input.Search != "" {
 		args = append(args, input.Search)

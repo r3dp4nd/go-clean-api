@@ -11,21 +11,23 @@ import (
 var errRepositoryFailure = errors.New("repository failure")
 
 type fakeRepository struct {
-	listFn     func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
-	getFn      func(ctx context.Context, id string) (Product, error)
-	getBySKUFn func(ctx context.Context, sku string) (Product, error)
-	createFn   func(ctx context.Context, input CreateProductInput) (Product, error)
-	updateFn   func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
-	deleteFn   func(ctx context.Context, id string) error
-	restoreFn  func(ctx context.Context, id string) (Product, error)
+	listFn        func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
+	listDeletedFn func(ctx context.Context, input ListProductsInput) (ListProductsResult, error)
+	getFn         func(ctx context.Context, id string) (Product, error)
+	getBySKUFn    func(ctx context.Context, sku string) (Product, error)
+	createFn      func(ctx context.Context, input CreateProductInput) (Product, error)
+	updateFn      func(ctx context.Context, id string, input UpdateProductInput) (Product, error)
+	deleteFn      func(ctx context.Context, id string) error
+	restoreFn     func(ctx context.Context, id string) (Product, error)
 
-	listCalls     int
-	getCalls      int
-	getBySKUCalls int
-	createCalls   int
-	updateCalls   int
-	deleteCalls   int
-	restoreCalls  int
+	listCalls        int
+	listDeletedCalls int
+	getCalls         int
+	getBySKUCalls    int
+	createCalls      int
+	updateCalls      int
+	deleteCalls      int
+	restoreCalls     int
 }
 
 func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
@@ -33,6 +35,16 @@ func (f *fakeRepository) List(ctx context.Context, input ListProductsInput) (Lis
 
 	if f.listFn != nil {
 		return f.listFn(ctx, input)
+	}
+
+	return ListProductsResult{}, nil
+}
+
+func (f *fakeRepository) ListDeleted(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+	f.listDeletedCalls++
+
+	if f.listDeletedFn != nil {
+		return f.listDeletedFn(ctx, input)
 	}
 
 	return ListProductsResult{}, nil
@@ -1334,5 +1346,67 @@ func TestServiceRestoreProductDuplicateSKU(t *testing.T) {
 	_, err := service.Restore(context.Background(), "123")
 	if !errors.Is(err, ErrSKUAlreadyExists) {
 		t.Fatalf("expected ErrSKUAlreadyExists, got %v", err)
+	}
+}
+
+func TestServiceListDeletedProducts(t *testing.T) {
+	deletedAt := time.Now().UTC()
+
+	expectedResult := ListProductsResult{
+		Items: []Product{
+			{
+				ID:        "1",
+				SKU:       "DELETED-001",
+				Name:      "Deleted Product",
+				Price:     100,
+				DeletedAt: &deletedAt,
+			},
+		},
+		Total:      1,
+		Page:       1,
+		PageSize:   10,
+		TotalPages: 1,
+		Sort:       SortFieldID,
+		Order:      SortOrderAsc,
+	}
+
+	repository := &fakeRepository{
+		listDeletedFn: func(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+			if input.Page != 1 {
+				t.Fatalf("expected page %d, got %d", 1, input.Page)
+			}
+
+			if input.PageSize != 10 {
+				t.Fatalf("expected page size %d, got %d", 10, input.PageSize)
+			}
+
+			return expectedResult, nil
+		},
+	}
+
+	service := NewService(repository)
+
+	result, err := service.ListDeleted(context.Background(), ListProductsInput{
+		Page:     1,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.listDeletedCalls != 1 {
+		t.Fatalf("expected ListDeleted to be called once, got %d", repository.listDeletedCalls)
+	}
+
+	if result.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, result.Total)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result.Items))
+	}
+
+	if result.Items[0].DeletedAt == nil {
+		t.Fatal("expected deleted_at to be set")
 	}
 }

@@ -49,6 +49,15 @@ func (s *Service) List(ctx context.Context, input ListProductsInput) (ListProduc
 	return s.repository.List(ctx, normalizedInput)
 }
 
+func (s *Service) ListDeleted(ctx context.Context, input ListProductsInput) (ListProductsResult, error) {
+	normalizedInput, err := normalizeListProductsInput(input)
+	if err != nil {
+		return ListProductsResult{}, err
+	}
+
+	return s.repository.ListDeleted(ctx, normalizedInput)
+}
+
 func (s *Service) Get(ctx context.Context, id string) (Product, error) {
 	return s.repository.Get(ctx, strings.TrimSpace(id))
 }
