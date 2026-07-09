@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
@@ -18,6 +19,7 @@ type Options struct {
 	IdleTimeout       time.Duration
 	Logger            *slog.Logger
 	ProductService    *product.Service
+	AuditReader       audit.Reader
 	ReadinessChecker  ReadinessChecker
 	CORS              CORSOptions
 }
@@ -33,6 +35,7 @@ func New(options Options) *Server {
 	handlers := NewHandler(
 		options.Logger,
 		options.ProductService,
+		options.AuditReader,
 		options.ReadinessChecker,
 	)
 

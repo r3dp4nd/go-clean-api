@@ -7,14 +7,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
 const (
-	apiV1ProductsPrefix          = "/api/v1/products/"
-	apiV1ProductsSKUPrefix       = "/api/v1/products/sku/"
-	apiV1ProductRestoreSuffix    = "/restore"
-	apiV1ProductHardDeleteSuffix = "/hard"
+	apiV1ProductsPrefix           = "/api/v1/products/"
+	apiV1ProductsSKUPrefix        = "/api/v1/products/sku/"
+	apiV1ProductRestoreSuffix     = "/restore"
+	apiV1ProductHardDeleteSuffix  = "/hard"
+	apiV1ProductAuditEventsSuffix = "/audit-events"
 )
 
 func (h *Handler) handleAPIV1Products(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +73,24 @@ func (h *Handler) handleAPIV1ProductByID(w http.ResponseWriter, r *http.Request)
 		}
 
 		h.hardDeleteProduct(w, r, id)
+		return
+	}
+
+	if strings.HasSuffix(pathValue, apiV1ProductAuditEventsSuffix) {
+		id := strings.TrimSuffix(pathValue, apiV1ProductAuditEventsSuffix)
+		id = strings.TrimSuffix(id, "/")
+
+		if id == "" || strings.Contains(id, "/") {
+			writeNotFound(w, r)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, r, http.MethodGet)
+			return
+		}
+
+		h.listProductAuditEvents(w, r, id)
 		return
 	}
 
@@ -491,6 +511,43 @@ func (h *Handler) hardDeleteProduct(w http.ResponseWriter, r *http.Request, id s
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) listProductAuditEvents(w http.ResponseWriter, r *http.Request, id string) {
+	input, fieldErrors := readAuditEventListQuery(r)
+	if len(fieldErrors) > 0 {
+		writeValidationError(w, r, fieldErrors)
+		return
+	}
+
+	result, err := h.auditReader.ListByAggregate(
+		r.Context(),
+		product.AuditAggregateProduct,
+		id,
+		input,
+	)
+	if err != nil {
+		h.logger.Error(
+			"error listing product audit events",
+			"error", err,
+			"request_id", getRequestID(r.Context()),
+		)
+
+		writeInternalError(w, r)
+		return
+	}
+
+	response := AuditEventListResponse{
+		Data: toAuditEventResponses(result.Items),
+		Meta: PaginationMeta{
+			Page:       result.Page,
+			PageSize:   result.PageSize,
+			Total:      result.Total,
+			TotalPages: result.TotalPages,
+		},
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 func writeProductValidationError(w http.ResponseWriter, r *http.Request, validationErr product.ValidationError) {
 	fields := make([]FieldError, 0, len(validationErr.Fields))
 
@@ -540,6 +597,32 @@ func toDeletedProductResponses(items []product.Product) []DeletedProductResponse
 
 	for _, item := range items {
 		responses = append(responses, toDeletedProductResponse(item))
+	}
+
+	return responses
+}
+
+func toAuditEventResponse(item audit.Event) AuditEventResponse {
+	payload := item.Payload
+	if payload == nil {
+		payload = map[string]any{}
+	}
+
+	return AuditEventResponse{
+		ID:            item.ID,
+		EventType:     item.Type,
+		AggregateType: item.AggregateType,
+		AggregateID:   item.AggregateID,
+		Payload:       payload,
+		CreatedAt:     item.CreatedAt,
+	}
+}
+
+func toAuditEventResponses(items []audit.Event) []AuditEventResponse {
+	responses := make([]AuditEventResponse, 0, len(items))
+
+	for _, item := range items {
+		responses = append(responses, toAuditEventResponse(item))
 	}
 
 	return responses

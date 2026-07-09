@@ -46,6 +46,20 @@ type DeletedProductListResponse struct {
 	Meta PaginationMeta           `json:"meta"`
 }
 
+type AuditEventResponse struct {
+	ID            string         `json:"id"`
+	EventType     string         `json:"event_type"`
+	AggregateType string         `json:"aggregate_type"`
+	AggregateID   string         `json:"aggregate_id"`
+	Payload       map[string]any `json:"payload"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+type AuditEventListResponse struct {
+	Data []AuditEventResponse `json:"data"`
+	Meta PaginationMeta       `json:"meta"`
+}
+
 type PaginationMeta struct {
 	Page        int        `json:"page"`
 	PageSize    int        `json:"page_size"`

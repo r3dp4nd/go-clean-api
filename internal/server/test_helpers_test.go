@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
@@ -19,14 +20,18 @@ func (f fakeReadinessChecker) Ping(ctx context.Context) error {
 
 func newTestHTTPHandler() http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	productStore := product.NewStore()
-	productService := product.NewService(productStore)
+	auditStore := audit.NewMemoryStore()
+
+	productService := product.NewServiceWithAuditor(productStore, auditStore)
 
 	mux := http.NewServeMux()
 
 	handlers := NewHandler(
 		logger,
 		productService,
+		auditStore,
 		fakeReadinessChecker{},
 	)
 
@@ -43,6 +48,7 @@ func newTestHTTPHandler() http.Handler {
 			"GET",
 			"POST",
 			"PUT",
+			"PATCH",
 			"DELETE",
 			"OPTIONS",
 		},

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
@@ -72,14 +73,18 @@ func TestReadyReturnsServiceUnavailableWhenDatabaseIsNotReady(t *testing.T) {
 
 func newSystemTestHandler(readinessChecker ReadinessChecker) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	productStore := product.NewStore()
-	productService := product.NewService(productStore)
+	auditStore := audit.NewMemoryStore()
+
+	productService := product.NewServiceWithAuditor(productStore, auditStore)
 
 	mux := http.NewServeMux()
 
 	handlers := NewHandler(
 		logger,
 		productService,
+		auditStore,
 		readinessChecker,
 	)
 

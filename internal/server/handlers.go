@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/r3dp4nd/go-clean-api/internal/audit"
 	"github.com/r3dp4nd/go-clean-api/internal/product"
 )
 
@@ -15,13 +16,20 @@ type ReadinessChecker interface {
 type Handler struct {
 	logger           *slog.Logger
 	productService   *product.Service
+	auditReader      audit.Reader
 	readinessChecker ReadinessChecker
 }
 
-func NewHandler(logger *slog.Logger, productService *product.Service, readinessChecker ReadinessChecker) *Handler {
+func NewHandler(
+	logger *slog.Logger,
+	productService *product.Service,
+	auditReader audit.Reader,
+	readinessChecker ReadinessChecker,
+) *Handler {
 	return &Handler{
 		logger:           logger,
 		productService:   productService,
+		auditReader:      auditReader,
 		readinessChecker: readinessChecker,
 	}
 }

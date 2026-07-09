@@ -2509,3 +2509,235 @@ func TestHardDeleteProductMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected Allow header %q, got %q", http.MethodDelete, got)
 	}
 }
+
+func TestListProductAuditEventsAfterCreate(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-AUDIT-001",
+		"name": "HTTP Audit",
+		"description": "Producto para probar auditoría",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	auditRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID+"/audit-events",
+		nil,
+	)
+	auditRequest.Header.Set(requestIDHeader, "list-product-audit-events")
+
+	auditRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(auditRecorder, auditRequest)
+
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, auditRecorder.Code, auditRecorder.Body.String())
+	}
+
+	var response AuditEventListResponse
+	if err := json.NewDecoder(auditRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode audit event list response: %v", err)
+	}
+
+	if response.Meta.Total != 1 {
+		t.Fatalf("expected total %d, got %d", 1, response.Meta.Total)
+	}
+
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 audit event, got %d", len(response.Data))
+	}
+
+	event := response.Data[0]
+
+	if event.EventType != product.AuditEventProductCreated {
+		t.Fatalf("expected event type %q, got %q", product.AuditEventProductCreated, event.EventType)
+	}
+
+	if event.AggregateType != product.AuditAggregateProduct {
+		t.Fatalf("expected aggregate type %q, got %q", product.AuditAggregateProduct, event.AggregateType)
+	}
+
+	if event.AggregateID != createdProduct.ID {
+		t.Fatalf("expected aggregate id %q, got %q", createdProduct.ID, event.AggregateID)
+	}
+
+	if event.Payload["sku"] != "HTTP-AUDIT-001" {
+		t.Fatalf("expected payload sku %q, got %v", "HTTP-AUDIT-001", event.Payload["sku"])
+	}
+}
+
+func TestListProductAuditEventsAfterUpdateAndDelete(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	createBody := []byte(`{
+		"sku": "HTTP-AUDIT-FLOW-001",
+		"name": "HTTP Audit Flow",
+		"description": "Producto para flujo de auditoría",
+		"price": 100
+	}`)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products",
+		bytes.NewReader(createBody),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+
+	createRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createRecorder, createRequest)
+
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusCreated, createRecorder.Code, createRecorder.Body.String())
+	}
+
+	createdProduct := decodeProductResourceResponse(t, createRecorder)
+
+	patchBody := []byte(`{
+		"price": 150
+	}`)
+
+	patchRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/products/"+createdProduct.ID,
+		bytes.NewReader(patchBody),
+	)
+	patchRequest.Header.Set("Content-Type", "application/json")
+
+	patchRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(patchRecorder, patchRequest)
+
+	if patchRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, patchRecorder.Code, patchRecorder.Body.String())
+	}
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/products/"+createdProduct.ID,
+		nil,
+	)
+
+	deleteRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deleteRecorder, deleteRequest)
+
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusNoContent, deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	auditRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/"+createdProduct.ID+"/audit-events",
+		nil,
+	)
+
+	auditRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(auditRecorder, auditRequest)
+
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d. body: %s", http.StatusOK, auditRecorder.Code, auditRecorder.Body.String())
+	}
+
+	var response AuditEventListResponse
+	if err := json.NewDecoder(auditRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode audit event list response: %v", err)
+	}
+
+	if response.Meta.Total != 3 {
+		t.Fatalf("expected total %d, got %d", 3, response.Meta.Total)
+	}
+
+	if len(response.Data) != 3 {
+		t.Fatalf("expected 3 audit events, got %d", len(response.Data))
+	}
+
+	expectedTypes := map[string]bool{
+		product.AuditEventProductCreated: false,
+		product.AuditEventProductUpdated: false,
+		product.AuditEventProductDeleted: false,
+	}
+
+	for _, event := range response.Data {
+		if _, ok := expectedTypes[event.EventType]; ok {
+			expectedTypes[event.EventType] = true
+		}
+	}
+
+	for eventType, found := range expectedTypes {
+		if !found {
+			t.Fatalf("expected audit event type %q to be present", eventType)
+		}
+	}
+}
+
+func TestListProductAuditEventsMethodNotAllowed(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/products/123/audit-events",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "audit-events-method-not-allowed")
+
+	responseRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, responseRecorder.Code)
+	}
+
+	if got := responseRecorder.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow header %q, got %q", http.MethodGet, got)
+	}
+}
+
+func TestListProductAuditEventsInvalidPagination(t *testing.T) {
+	handler := newTestHTTPHandler()
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/products/123/audit-events?page=0&page_size=101",
+		nil,
+	)
+	request.Header.Set(requestIDHeader, "audit-events-invalid-pagination")
+
+	responseRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf(
+			"expected status %d, got %d. body: %s",
+			http.StatusUnprocessableEntity,
+			responseRecorder.Code,
+			responseRecorder.Body.String(),
+		)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error.Code != errorCodeValidation {
+		t.Fatalf("expected error code %q, got %q", errorCodeValidation, response.Error.Code)
+	}
+
+	if len(response.Error.Fields) != 2 {
+		t.Fatalf("expected 2 field errors, got %d", len(response.Error.Fields))
+	}
+}

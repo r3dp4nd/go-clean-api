@@ -504,3 +504,13 @@ Endpoint:
 ```text
 DELETE /api/v1/products/{id}/hard
 ```
+
+## Consultar auditoría de un producto
+
+La API permite consultar los eventos de auditoría asociados a un producto.
+
+Endpoint:
+
+```text
+GET /api/v1/products/{id}/audit-events
+```

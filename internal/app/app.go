@@ -53,8 +53,8 @@ func (a *App) Run() error {
 	a.logger.Info("postgres connection established")
 
 	productRepository := product.NewPostgresRepository(postgresPool)
-	auditRecorder := audit.NewPostgresRecorder(postgresPool)
-	productService := product.NewServiceWithAuditor(productRepository, auditRecorder)
+	auditStore := audit.NewPostgresRecorder(postgresPool)
+	productService := product.NewServiceWithAuditor(productRepository, auditStore)
 
 	httpServer := server.New(server.Options{
 		Addr:              a.config.HTTP.Addr,
@@ -64,6 +64,7 @@ func (a *App) Run() error {
 		IdleTimeout:       a.config.HTTP.IdleTimeout,
 		Logger:            a.logger,
 		ProductService:    productService,
+		AuditReader:       auditStore,
 		CORS: server.CORSOptions{
 			Enabled:        a.config.CORS.Enabled,
 			AllowedOrigins: a.config.CORS.AllowedOrigins,
